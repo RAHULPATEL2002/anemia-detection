@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | AnemiaVision AI{% endblock %}
+{% block page_title %}Clinical Dashboard{% endblock %}
+
+{% block content %}
+<section class="hero-panel fade-in-up">
+    <div class="hero-copy">
+        <span class="eyebrow">AI-assisted anemia screening</span>
+        <h2>AI-Powered Anemia Detection in Seconds</h2>
+        <p>
+            Screen conjunctiva and fingernail images in a trusted hospital-grade workflow,
+            then review confidence, Grad-CAM focus regions, and patient-ready reporting in one place.
+        </p>
+        <div class="hero-actions">
+            <a href="{{ url_for('scan_page') }}" class="btn btn-primary btn-lg">Quick Scan</a>
+            <a href="{{ url_for('analytics_page') }}" class="btn btn-outline-light btn-lg">Open Analytics</a>
+        </div>
+    </div>
+    <div class="accuracy-card">
+        <span class="eyebrow text-white-50">Confidence benchmark</span>
+        <h3>{{ "%.1f"|format(performance.accuracy_badge) }}% Clinical Accuracy</h3>
+        <div class="confidence-meter">
+            <div class="confidence-fill" data-progress="{{ performance.accuracy_badge }}"></div>
+        </div>
+        <p>Displayed from {{ performance.source }}.</p>
+    </div>
+</section>
+
+<section class="stats-grid">
+    <article class="stat-card fade-in-up">
+        <span>Total Scans</span>
+        <strong>{{ home_stats.total_scans }}</strong>
+        <small>All patient screenings stored in SQLite</small>
+    </article>
+    <article class="stat-card fade-in-up">
+        <span>Anemic Detected</span>
+        <strong class="text-danger-emphasis">{{ home_stats.anemic_detected }}</strong>
+        <small>Flagged for follow-up review</small>
+    </article>
+    <article class="stat-card fade-in-up">
+        <span>Non-Anemic</span>
+        <strong class="text-success-emphasis">{{ home_stats.non_anemic_detected }}</strong>
+        <small>Healthy-leaning visual results</small>
+    </article>
+    <article class="stat-card fade-in-up">
+        <span>This Week</span>
+        <strong>{{ home_stats.this_week }}</strong>
+        <small>Scans completed over the last 7 days</small>
+    </article>
+</section>
+
+<div class="content-grid">
+    <section class="surface-card fade-in-up">
+        <div class="section-header">
+            <div>
+                <span class="eyebrow">Recent activity</span>
+                <h3>Recent 5 patients</h3>
+            </div>
+            <a href="{{ url_for('history_page') }}" class="btn btn-sm btn-outline-secondary">View History</a>
+        </div>
+        <div class="table-responsive">
+            <table class="table app-table align-middle">
+                <thead>
+                    <tr>
+                        <th>Scan ID</th>
+                        <th>Patient</th>
+                        <th>Date</th>
+                        <th>Result</th>
+                        <th>Confidence</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if recent_scans %}
+                        {% for scan in recent_scans %}
+                            <tr>
+                                <td><a href="{{ url_for('result_page', scan_id=scan.id) }}">{{ scan.public_scan_id }}</a></td>
+                                <td>{{ scan.patient_name }}</td>
+                                <td>{{ scan.created_at.strftime("%d %b %Y, %H:%M") }}</td>
+                                <td>
+                                    <span class="badge result-badge {% if scan.is_anemic %}result-badge-danger{% else %}result-badge-success{% endif %}">
+                                        {{ scan.prediction }}
+                                    </span>
+                                </td>
+                                <td>{{ "%.1f"|format(scan.confidence_percent) }}%</td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="empty-state-cell">No scans yet. Start with a new patient screening.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="surface-card fade-in-up">
+        <div class="section-header">
+            <div>
+                <span class="eyebrow">Workflow</span>
+                <h3>How It Works</h3>
+            </div>
+        </div>
+        <div class="steps-grid">
+            <article class="step-card">
+                <div class="step-icon"><i data-lucide="upload-cloud"></i></div>
+                <h4>1. Upload</h4>
+                <p>Capture or upload a smartphone image of the eye conjunctiva or fingernail.</p>
+            </article>
+            <article class="step-card">
+                <div class="step-icon"><i data-lucide="cpu"></i></div>
+                <h4>2. Analyze</h4>
+                <p>The EfficientNet-B3 pipeline evaluates visual anemia markers and confidence levels.</p>
+            </article>
+            <article class="step-card">
+                <div class="step-icon"><i data-lucide="file-heart"></i></div>
+                <h4>3. Results</h4>
+                <p>Review the verdict, AI focus region, risk level, and export a PDF report for records.</p>
+            </article>
+        </div>
+    </section>
+</div>
+{% endblock %}

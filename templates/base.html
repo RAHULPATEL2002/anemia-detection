@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}AnemiaVision AI{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body data-endpoint="{{ request.endpoint or '' }}">
+    <a href="#main-content" class="skip-link">Skip to content</a>
+
+    <div class="app-shell">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <a href="{{ url_for('index') }}" class="brand">
+                    <span class="brand-mark" aria-hidden="true">
+                        <svg viewBox="0 0 64 64" role="img" aria-hidden="true">
+                            <defs>
+                                <linearGradient id="brand-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#0A6E6E"/>
+                                    <stop offset="100%" stop-color="#2DC653"/>
+                                </linearGradient>
+                            </defs>
+                            <ellipse cx="32" cy="32" rx="25" ry="16" fill="none" stroke="url(#brand-gradient)" stroke-width="5"/>
+                            <circle cx="32" cy="32" r="9" fill="#0D1B2A"/>
+                            <circle cx="32" cy="32" r="4" fill="#FFFFFF"/>
+                            <path d="M20 32c2-7 8-12 12-12s10 5 12 12" fill="none" stroke="#E63946" stroke-width="3" stroke-linecap="round"/>
+                        </svg>
+                    </span>
+                    <span>
+                        <strong>AnemiaVision AI</strong>
+                        <small>Medical Screening Suite</small>
+                    </span>
+                </a>
+                <button class="btn sidebar-close d-lg-none" type="button" data-sidebar-close aria-label="Close navigation">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+
+            <nav class="sidebar-nav" aria-label="Primary">
+                <a href="{{ url_for('index') }}" class="nav-item {% if request.endpoint == 'index' %}active{% endif %}">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="{{ url_for('scan_page') }}" class="nav-item {% if request.endpoint == 'scan_page' %}active{% endif %}">
+                    <i data-lucide="scan-line"></i>
+                    <span>New Scan</span>
+                </a>
+                <a href="{{ url_for('history_page') }}" class="nav-item {% if request.endpoint == 'history_page' %}active{% endif %}">
+                    <i data-lucide="history"></i>
+                    <span>Patient History</span>
+                </a>
+                <a href="{{ url_for('analytics_page') }}" class="nav-item {% if request.endpoint == 'analytics_page' %}active{% endif %}">
+                    <i data-lucide="chart-column"></i>
+                    <span>Analytics</span>
+                </a>
+                <a href="{{ url_for('about_page') }}" class="nav-item {% if request.endpoint == 'about_page' %}active{% endif %}">
+                    <i data-lucide="info"></i>
+                    <span>About</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <p>{{ disclaimer_text }}</p>
+            </div>
+        </aside>
+
+        <div class="page-area">
+            <header class="topbar">
+                <div class="topbar-left">
+                    <button class="btn topbar-icon d-lg-none" type="button" data-sidebar-open aria-label="Open navigation">
+                        <i data-lucide="menu"></i>
+                    </button>
+                    <div>
+                        <p class="topbar-label">Live hospital workspace</p>
+                        <h1 class="topbar-title">{% block page_title %}AnemiaVision AI{% endblock %}</h1>
+                    </div>
+                </div>
+                <div class="topbar-right">
+                    <div class="topbar-info">
+                        <span class="topbar-info-label">Current date & time</span>
+                        <strong id="currentDateTime" aria-live="polite"></strong>
+                    </div>
+                    <div class="topbar-counter">
+                        <span>Total scans</span>
+                        <strong>{{ total_scans_counter }}</strong>
+                    </div>
+                    <div class="toolbar-actions">
+                        <button class="btn topbar-icon" type="button" id="largeTextToggle" aria-pressed="false" aria-label="Toggle large text">
+                            <i data-lucide="zoom-in"></i>
+                        </button>
+                        <button class="btn topbar-icon" type="button" id="darkModeToggle" aria-pressed="false" aria-label="Toggle dark mode">
+                            <i data-lucide="moon-star"></i>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <main id="main-content" class="content-wrap">
+                <section class="disclaimer-banner fade-in-up" aria-label="Clinical disclaimer">
+                    <i data-lucide="shield-alert"></i>
+                    <p>{{ disclaimer_text }}</p>
+                </section>
+
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <div class="toast-stack" aria-live="polite" aria-atomic="true">
+                            {% for category, message in messages %}
+                                <div class="toast app-toast text-bg-{{ category if category not in ['message', ''] else 'primary' }} border-0 fade-in-up" role="status" data-bs-delay="4200">
+                                    <div class="toast-body">
+                                        {{ message }}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                {% endwith %}
+
+                {% block content %}{% endblock %}
+            </main>
+
+            <footer class="app-footer">
+                <p>{{ disclaimer_text }}</p>
+            </footer>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

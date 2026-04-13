@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics | AnemiaVision AI{% endblock %}
+{% block page_title %}Analytics Dashboard{% endblock %}
+
+{% block content %}
+<section class="surface-card fade-in-up">
+    <div class="section-header">
+        <div>
+            <span class="eyebrow">Population trends</span>
+            <h3>Screening analytics</h3>
+        </div>
+    </div>
+
+    <form method="get" class="filter-grid mb-4">
+        <input class="form-control" type="date" name="start_date" value="{{ filters.start_date }}">
+        <input class="form-control" type="date" name="end_date" value="{{ filters.end_date }}">
+        <button class="btn btn-primary" type="submit">Update Range</button>
+    </form>
+
+    <div class="stats-grid">
+        <article class="stat-card">
+            <span>Total patients</span>
+            <strong>{{ analytics_data.metrics.total_patients }}</strong>
+            <small>Within the selected time window</small>
+        </article>
+        <article class="stat-card">
+            <span>Detection rate</span>
+            <strong>{{ "%.1f"|format(analytics_data.metrics.detection_rate) }}%</strong>
+            <small>Scans predicted as anemic</small>
+        </article>
+        <article class="stat-card">
+            <span>Average confidence</span>
+            <strong>{{ "%.1f"|format(analytics_data.metrics.average_confidence) }}%</strong>
+            <small>Across all filtered scans</small>
+        </article>
+        <article class="stat-card">
+            <span>Most common age group</span>
+            <strong>{{ analytics_data.metrics.most_common_age_group }}</strong>
+            <small>Most represented patient segment</small>
+        </article>
+    </div>
+</section>
+
+<div class="analytics-grid">
+    <section class="surface-card fade-in-up">
+        <div class="section-header compact">
+            <div>
+                <span class="eyebrow">Ratio</span>
+                <h3>Anemic vs Non-Anemic</h3>
+            </div>
+        </div>
+        <div class="chart-shell is-loading" data-chart-shell>
+            <div class="chart-skeleton" data-chart-skeleton></div>
+            <canvas class="analytics-chart" id="pieChart"></canvas>
+        </div>
+    </section>
+
+    <section class="surface-card fade-in-up">
+        <div class="section-header compact">
+            <div>
+                <span class="eyebrow">Trend</span>
+                <h3>Scans per day</h3>
+            </div>
+        </div>
+        <div class="chart-shell is-loading" data-chart-shell>
+            <div class="chart-skeleton" data-chart-skeleton></div>
+            <canvas class="analytics-chart" id="lineChart"></canvas>
+        </div>
+    </section>
+
+    <section class="surface-card fade-in-up">
+        <div class="section-header compact">
+            <div>
+                <span class="eyebrow">Risk segment</span>
+                <h3>Age distribution of anemic cases</h3>
+            </div>
+        </div>
+        <div class="chart-shell is-loading" data-chart-shell>
+            <div class="chart-skeleton" data-chart-skeleton></div>
+            <canvas class="analytics-chart" id="ageBarChart"></canvas>
+        </div>
+    </section>
+
+    <section class="surface-card fade-in-up">
+        <div class="section-header compact">
+            <div>
+                <span class="eyebrow">Confidence</span>
+                <h3>Confidence score distribution</h3>
+            </div>
+        </div>
+        <div class="chart-shell is-loading" data-chart-shell>
+            <div class="chart-skeleton" data-chart-skeleton></div>
+            <canvas class="analytics-chart" id="confidenceBarChart"></canvas>
+        </div>
+    </section>
+</div>
+
+<script id="analyticsPayload" type="application/json">{{ analytics_data|tojson }}</script>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/analytics.js') }}"></script>
+{% endblock %}

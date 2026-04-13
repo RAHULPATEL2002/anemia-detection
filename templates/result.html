@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Scan Result | AnemiaVision AI{% endblock %}
+{% block page_title %}Screening Result{% endblock %}
+
+{% block content %}
+<section class="surface-card fade-in-up">
+    <div class="result-header">
+        <div>
+            <span class="eyebrow">Scan result</span>
+            <h3>{{ scan.patient_name }}</h3>
+            <p class="text-secondary mb-0">
+                {{ scan.created_at.strftime("%d %b %Y, %H:%M") }} | {{ scan.public_scan_id }}
+            </p>
+        </div>
+        <div class="result-actions-inline">
+            <a href="{{ url_for('scan_page') }}" class="btn btn-outline-secondary">New Scan</a>
+            <a href="{{ url_for('history_page') }}" class="btn btn-outline-secondary">View History</a>
+            <button type="button" class="btn btn-outline-secondary" id="printReportButton">Print</button>
+        </div>
+    </div>
+
+    <article class="verdict-card {{ scan.result_color_class }}">
+        <div>
+            <span class="eyebrow text-white-50">AI verdict</span>
+            <h2>{{ scan.verdict_title }}</h2>
+        </div>
+        <span class="badge risk-pill">{{ scan.risk_level }}</span>
+    </article>
+
+    <div class="result-grid">
+        <div class="surface-subcard">
+            <div class="section-header compact">
+                <div>
+                    <span class="eyebrow">Confidence</span>
+                    <h4>{{ "%.1f"|format(scan.confidence_percent) }}% confidence</h4>
+                </div>
+            </div>
+            <div class="confidence-meter large">
+                <div class="confidence-fill" data-progress="{{ scan.confidence_percent }}"></div>
+            </div>
+            <p class="mt-3">{{ scan.risk_explanation }}</p>
+            <div class="metric-stack">
+                <div class="metric-chip">
+                    <span>Anemic probability</span>
+                    <strong>{{ "%.1f"|format(scan.anemic_probability * 100) }}%</strong>
+                </div>
+                <div class="metric-chip">
+                    <span>Non-anemic probability</span>
+                    <strong>{{ "%.1f"|format(scan.non_anemic_probability * 100) }}%</strong>
+                </div>
+                <div class="metric-chip">
+                    <span>Image quality</span>
+                    <strong>{{ quality.label }}</strong>
+                </div>
+            </div>
+            {% if quality.warning %}
+                <p class="small text-warning mt-3 mb-0">{{ quality.warning }}</p>
+            {% endif %}
+        </div>
+
+        <div class="surface-subcard">
+            <span class="eyebrow">Clinical context</span>
+            <h4>Estimated hemoglobin range</h4>
+            <p class="hemoglobin-range">{{ scan.hemoglobin_estimate }}</p>
+            <p class="small text-secondary mb-0">This is a rough visual estimate and not a laboratory measurement.</p>
+        </div>
+    </div>
+</section>
+
+<section class="surface-card fade-in-up">
+    <div class="section-header">
+        <div>
+            <span class="eyebrow">Explainability</span>
+            <h3>AI Focus Region</h3>
+        </div>
+    </div>
+    <div class="gradcam-grid">
+        <figure>
+            <img src="{{ scan.image_url }}" alt="Original uploaded scan image" class="result-image">
+            <figcaption>Original patient image</figcaption>
+        </figure>
+        <figure>
+            {% if scan.gradcam_url %}
+                <img src="{{ scan.gradcam_url }}" alt="Grad-CAM heatmap overlay" class="result-image">
+            {% else %}
+                <div class="preview-placeholder tall">Grad-CAM heatmap not available.</div>
+            {% endif %}
+            <figcaption>AI Focus Region: highlighted area shows what triggered the prediction.</figcaption>
+        </figure>
+    </div>
+</section>
+
+<div class="content-grid">
+    <section class="surface-card fade-in-up">
+        <div class="section-header">
+            <div>
+                <span class="eyebrow">Recommended next steps</span>
+                <h3>Medical advice</h3>
+            </div>
+        </div>
+        <ul class="advice-list">
+            {% for item in scan.medical_advice %}
+                <li>{{ item }}</li>
+            {% endfor %}
+        </ul>
+    </section>
+
+    <section class="surface-card fade-in-up">
+        <div class="section-header">
+            <div>
+                <span class="eyebrow">Actions</span>
+                <h3>Download and share</h3>
+            </div>
+        </div>
+        <div class="action-stack">
+            <a href="{{ url_for('export_pdf', scan_id=scan.id) }}" class="btn btn-primary">Download PDF Report</a>
+            <button type="button" class="btn btn-outline-secondary" id="printReportButtonSecondary">Print This Result</button>
+            <a href="{{ whatsapp_share_url }}" class="btn btn-success" target="_blank" rel="noopener">Share on WhatsApp</a>
+            <a href="{{ email_share_url }}" class="btn btn-outline-secondary">Share by Email</a>
+        </div>
+    </section>
+</div>
+{% endblock %}

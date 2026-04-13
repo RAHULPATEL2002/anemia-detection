@@ -1,0 +1,31 @@
+
+Dataset statistics
+------------------------------------------------------------------------
+train    anemic=3318  non-anemic=2867  total=6185  imbalance=1.16:1
+valid    anemic=63    non-anemic=44    total=107   imbalance=1.43:1
+test     anemic=131   non-anemic=143   total=274   imbalance=1.09:1
+------------------------------------------------------------------------
+2026-04-13 02:34:08,006 | INFO | Using device: cpu
+2026-04-13 02:34:08,006 | INFO | Training dataset root: D:\projects\anemia detection\dataset
+2026-04-13 02:34:08,006 | INFO | Training profile: fast
+2026-04-13 02:34:08,006 | INFO | Model architecture: efficientnet_b0
+2026-04-13 02:34:08,023 | INFO | Class weights: {'non-anemic': 1.0786536931991577, 'anemic': 0.932037353515625}
+2026-04-13 02:34:17,069 | INFO | Epoch 1/12 | lr=0.00002000
+
+Epoch 1/12
+2026-04-13 02:56:45,124 | INFO | Epoch 1 summary | train_loss=0.6837 train_acc=0.5434 valid_loss=0.6963 valid_acc=0.5421 valid_f1=0.5739 valid_auc_roc=0.4906
+train_loss=0.6837 train_acc=0.5434 valid_loss=0.6963 valid_acc=0.5421 valid_f1=0.5739
+2026-04-13 02:56:45,450 | INFO | Saved new best model to D:\projects\anemia detection\models\best_model.pth
+2026-04-13 02:56:48,325 | INFO | Epoch 2/12 | lr=0.00006000
+
+Epoch 2/12
+2026-04-13 03:19:53,966 | INFO | Epoch 2 summary | train_loss=0.6532 train_acc=0.6105 valid_loss=0.7317 valid_acc=0.4112 valid_f1=0.1600 valid_auc_roc=0.5216
+train_loss=0.6532 train_acc=0.6105 valid_loss=0.7317 valid_acc=0.4112 valid_f1=0.1600
+2026-04-13 03:19:56,497 | INFO | Epoch 3/12 | lr=0.00010000
+
+Epoch 3/12
+2026-04-13 12:31:59,822 | INFO | Epoch 3 summary | train_loss=0.6156 train_acc=0.6668 valid_loss=0.7669 valid_acc=0.4486 valid_f1=0.2532 valid_auc_roc=0.5826
+train_loss=0.6156 train_acc=0.6668 valid_loss=0.7669 valid_acc=0.4486 valid_f1=0.2532
+2026-04-13 12:32:08,819 | INFO | Epoch 4/12 | lr=0.00009758
+
+Epoch 4/12

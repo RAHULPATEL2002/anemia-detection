@@ -1,0 +1,16 @@
+# virtual env
+.venv/
+venv/
+
+# models
+models/
+*.pth
+*.pt
+
+# python
+__pycache__/
+*.pyc
+
+# dataset
+data/
+dataset/

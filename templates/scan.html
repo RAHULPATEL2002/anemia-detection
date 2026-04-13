@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}New Scan | AnemiaVision AI{% endblock %}
+{% block page_title %}New Patient Scan{% endblock %}
+
+{% block content %}
+<section class="surface-card fade-in-up">
+    <div class="section-header">
+        <div>
+            <span class="eyebrow">Acquisition workflow</span>
+            <h3>Capture a new screening image</h3>
+        </div>
+        {% if checkpoint_available %}
+            <span class="badge text-bg-success">Model Ready</span>
+        {% else %}
+            <span class="badge text-bg-warning">Model Not Ready</span>
+        {% endif %}
+    </div>
+
+    <form id="scanForm" method="post" action="{{ url_for('predict_route') }}" enctype="multipart/form-data" class="scan-layout">
+        <div class="scan-capture-panel">
+            <ul class="nav nav-pills scan-tabs" id="scanTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="upload-tab" data-bs-toggle="pill" data-bs-target="#upload-pane" type="button" role="tab">
+                        Upload Image
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="camera-tab" data-bs-toggle="pill" data-bs-target="#camera-pane" type="button" role="tab">
+                        Camera Capture
+                    </button>
+                </li>
+            </ul>
+
+            <div id="cameraHttpWarning" class="camera-warning d-none" role="alert">
+                <i data-lucide="lock"></i>
+                <div>
+                    <strong>Camera needs HTTPS on mobile browsers.</strong>
+                    <p>Open the secure (https) site, or use Upload Image if you cannot enable HTTPS yet.</p>
+                </div>
+            </div>
+
+            <div class="tab-content mt-4">
+                <div class="tab-pane fade show active" id="upload-pane" role="tabpanel">
+                    <label for="imageInput" class="dropzone" id="dropzone">
+                        <input type="file" id="imageInput" name="image" accept="image/*" capture="environment" class="visually-hidden">
+                        <div>
+                            <i data-lucide="cloud-upload"></i>
+                            <h4>Drag & drop an image here</h4>
+                            <p>or tap to upload (mobile opens the camera).</p>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="tab-pane fade" id="camera-pane" role="tabpanel">
+                    <div class="camera-shell">
+                        <video id="cameraFeed" class="camera-feed" playsinline autoplay muted></video>
+                        <canvas id="cameraCanvas" class="d-none"></canvas>
+                        <p id="cameraStatus" class="camera-status">Rear camera is preferred for mobile capture. If the camera is unavailable, use file upload.</p>
+                        <div class="camera-actions">
+                            <button class="btn btn-outline-secondary" type="button" id="startCameraButton">Start Camera</button>
+                            <button class="btn btn-primary" type="button" id="captureButton">Capture Image</button>
+                            <button class="btn btn-outline-secondary d-none" type="button" id="retakeButton">Retake</button>
+                            <button class="btn btn-success d-none" type="button" id="confirmCaptureButton">Use This Photo</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="preview-panel mt-4">
+                <img id="imagePreview" class="preview-image d-none" alt="Selected preview">
+                <div id="previewPlaceholder" class="preview-placeholder">
+                    Preview will appear here after upload or capture.
+                </div>
+            </div>
+
+            <div class="quality-panel mt-3" aria-live="polite">
+                <span id="qualityStatus" class="quality-pill">Awaiting image</span>
+                <small id="qualityScore">Quality score will appear here.</small>
+            </div>
+
+            <input type="hidden" id="capturedImageData" name="captured_image_data">
+        </div>
+
+        <div class="scan-form-panel">
+            <div class="row g-3">
+                <div class="col-12">
+                    <label class="form-label" for="patientName">Name*</label>
+                    <input class="form-control" id="patientName" name="patient_name" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="patientAge">Age*</label>
+                    <input class="form-control" id="patientAge" name="age" type="number" min="0" max="120" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="gender">Gender*</label>
+                    <select class="form-select" id="gender" name="gender" required>
+                        <option value="">Select gender</option>
+                        {% for option in gender_options %}
+                            <option value="{{ option }}">{{ option }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="phone">Phone (optional)</label>
+                    <input class="form-control" id="phone" name="phone" type="tel">
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="imageType">Image Type</label>
+                    <select class="form-select" id="imageType" name="image_type">
+                        {% for option in image_type_options %}
+                            <option value="{{ option }}">{{ option }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="notes">Notes (optional)</label>
+                    <textarea class="form-control" id="notes" name="notes" rows="4"></textarea>
+                </div>
+                <div class="col-12">
+                    <button class="btn btn-primary btn-lg w-100" id="submitScanButton" {% if not checkpoint_available %}disabled{% endif %}>
+                        Run AI Screening
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</section>
+
+<div id="loadingOverlay" class="loading-overlay" aria-hidden="true">
+    <div class="spinner-card">
+        <div class="spinner-border text-light" role="status"></div>
+        <p>Running inference. Please wait while the AI analyzes the image.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/scan.js') }}"></script>
+{% endblock %}

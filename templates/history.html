@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}Patient History | AnemiaVision AI{% endblock %}
+{% block page_title %}Patient History{% endblock %}
+
+{% block content %}
+<section class="surface-card fade-in-up">
+    <div class="section-header">
+        <div>
+            <span class="eyebrow">Search and review</span>
+            <h3>Patient history</h3>
+        </div>
+        <a href="{{ url_for('export_history_csv', q=filters.q, result=filters.result, risk=filters.risk, start_date=filters.start_date, end_date=filters.end_date) }}" class="btn btn-outline-secondary">
+            Export All as CSV
+        </a>
+    </div>
+
+    <form method="get" class="filter-grid mb-4">
+        <input class="form-control" type="search" name="q" placeholder="Search patient name, phone, notes, or ID" value="{{ filters.q }}">
+        <select class="form-select" name="result">
+            <option value="">All results</option>
+            <option value="Anemic" {% if filters.result == 'Anemic' %}selected{% endif %}>Anemic</option>
+            <option value="Non-Anemic" {% if filters.result == 'Non-Anemic' %}selected{% endif %}>Non-Anemic</option>
+        </select>
+        <select class="form-select" name="risk">
+            <option value="">All risk levels</option>
+            <option value="Low Risk" {% if filters.risk == 'Low Risk' %}selected{% endif %}>Low Risk</option>
+            <option value="Low-Medium Risk" {% if filters.risk == 'Low-Medium Risk' %}selected{% endif %}>Low-Medium Risk</option>
+            <option value="Uncertain" {% if filters.risk == 'Uncertain' %}selected{% endif %}>Uncertain</option>
+            <option value="Possible Anemia" {% if filters.risk == 'Possible Anemia' %}selected{% endif %}>Possible Anemia</option>
+            <option value="Medium Risk" {% if filters.risk == 'Medium Risk' %}selected{% endif %}>Medium Risk</option>
+            <option value="High Risk" {% if filters.risk == 'High Risk' %}selected{% endif %}>High Risk</option>
+        </select>
+        <input class="form-control" type="date" name="start_date" value="{{ filters.start_date }}">
+        <input class="form-control" type="date" name="end_date" value="{{ filters.end_date }}">
+        <button class="btn btn-primary" type="submit">Apply Filters</button>
+    </form>
+
+    <div class="table-responsive">
+        <table class="table app-table align-middle">
+            <thead>
+                <tr>
+                    <th><a href="{{ url_for('history_page', q=filters.q, result=filters.result, risk=filters.risk, start_date=filters.start_date, end_date=filters.end_date, sort='id', order='asc' if current_sort == 'id' and current_order == 'desc' else 'desc') }}">ID</a></th>
+                    <th><a href="{{ url_for('history_page', q=filters.q, result=filters.result, risk=filters.risk, start_date=filters.start_date, end_date=filters.end_date, sort='name', order='asc' if current_sort == 'name' and current_order == 'desc' else 'desc') }}">Name</a></th>
+                    <th><a href="{{ url_for('history_page', q=filters.q, result=filters.result, risk=filters.risk, start_date=filters.start_date, end_date=filters.end_date, sort='age', order='asc' if current_sort == 'age' and current_order == 'desc' else 'desc') }}">Age</a></th>
+                    <th><a href="{{ url_for('history_page', q=filters.q, result=filters.result, risk=filters.risk, start_date=filters.start_date, end_date=filters.end_date, sort='gender', order='asc' if current_sort == 'gender' and current_order == 'desc' else 'desc') }}">Gender</a></th>
+                    <th><a href="{{ url_for('history_page', q=filters.q, result=filters.result, risk=filters.risk, start_date=filters.start_date, end_date=filters.end_date, sort='date', order='asc' if current_sort == 'date' and current_order == 'desc' else 'desc') }}">Date</a></th>
+                    <th><a href="{{ url_for('history_page', q=filters.q, result=filters.result, risk=filters.risk, start_date=filters.start_date, end_date=filters.end_date, sort='result', order='asc' if current_sort == 'result' and current_order == 'desc' else 'desc') }}">Result</a></th>
+                    <th><a href="{{ url_for('history_page', q=filters.q, result=filters.result, risk=filters.risk, start_date=filters.start_date, end_date=filters.end_date, sort='confidence', order='asc' if current_sort == 'confidence' and current_order == 'desc' else 'desc') }}">Confidence</a></th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if scans %}
+                    {% for scan in scans %}
+                        <tr>
+                            <td>{{ scan.public_scan_id }}</td>
+                            <td>{{ scan.patient_name }}</td>
+                            <td>{{ scan.age or "N/A" }}</td>
+                            <td>{{ scan.gender or "N/A" }}</td>
+                            <td>{{ scan.created_at.strftime("%d %b %Y") }}</td>
+                            <td>
+                                <span class="badge result-badge {% if scan.is_anemic %}result-badge-danger{% else %}result-badge-success{% endif %}">
+                                    {{ scan.prediction }}
+                                </span>
+                            </td>
+                            <td>{{ "%.1f"|format(scan.confidence_percent) }}%</td>
+                            <td>
+                                <div class="table-actions">
+                                    <a href="{{ url_for('result_page', scan_id=scan.id) }}" class="btn btn-sm btn-outline-secondary">View</a>
+                                    <a href="{{ url_for('export_pdf', scan_id=scan.id) }}" class="btn btn-sm btn-outline-secondary">PDF</a>
+                                    <form method="post" action="{{ url_for('delete_scan', scan_id=scan.id) }}" onsubmit="return confirm('Delete this scan record?');">
+                                        <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="8" class="empty-state-cell">No records match the current filters.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if pagination.pages > 1 %}
+        <nav class="mt-4" aria-label="History pagination">
+            <ul class="pagination justify-content-end">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('history_page', page=pagination.prev_num, q=filters.q, result=filters.result, risk=filters.risk, start_date=filters.start_date, end_date=filters.end_date, sort=current_sort, order=current_order) }}">Previous</a>
+                </li>
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('history_page', page=page_num, q=filters.q, result=filters.result, risk=filters.risk, start_date=filters.start_date, end_date=filters.end_date, sort=current_sort, order=current_order) }}">{{ page_num }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('history_page', page=pagination.next_num, q=filters.q, result=filters.result, risk=filters.risk, start_date=filters.start_date, end_date=filters.end_date, sort=current_sort, order=current_order) }}">Next</a>
+                </li>
+            </ul>
+        </nav>
+    {% endif %}
+</section>
+{% endblock %}
