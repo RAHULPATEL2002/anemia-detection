@@ -54,8 +54,12 @@
                     <strong>{{ quality.label }}</strong>
                 </div>
             </div>
-            {% if quality.warning %}
-                <p class="small text-warning mt-3 mb-0">{{ quality.warning }}</p>
+            {% if quality.warnings %}
+                <div class="quality-warnings mt-3">
+                    {% for warning in quality.warnings %}
+                        <p class="small text-warning mb-2">{{ warning }}</p>
+                    {% endfor %}
+                </div>
             {% endif %}
         </div>
 

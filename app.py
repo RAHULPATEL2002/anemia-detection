@@ -889,6 +889,7 @@ def build_prediction_response(record: Scan, quality: dict[str, Any]) -> dict[str
         "quality": quality,
         "image_quality": quality.get("image_quality"),
         "quality_warning": quality.get("warning"),
+        "quality_warnings": quality.get("warnings", []),
         "image_url": record.image_url,
         "gradcam_url": record.gradcam_url,
         "result_url": url_for("result_page", scan_id=record.id),

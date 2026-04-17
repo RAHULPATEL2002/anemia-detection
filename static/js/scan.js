@@ -41,7 +41,7 @@ function analyzeImageQuality(imageElement) {
     if (brightness < 40) {
         return {
             label: "Poor lighting",
-            detail: `Brightness: ${brightness.toFixed(1)}. Retake in brighter, even light.`,
+            detail: `Brightness: ${brightness.toFixed(1)}. Screening can still continue, but brighter even light may improve reliability.`,
             isGood: false
         };
     }
@@ -49,7 +49,7 @@ function analyzeImageQuality(imageElement) {
     if (variance < 100) {
         return {
             label: "Blurry image",
-            detail: `Blur score: ${variance.toFixed(1)}. Hold the camera steady and refocus.`,
+            detail: `Blur score: ${variance.toFixed(1)}. Screening can still continue, but a steadier, sharper image may improve reliability.`,
             isGood: false
         };
     }

@@ -32,11 +32,6 @@ def _read_float_env(key: str, default: float) -> float:
         return default
 
 
-STRICT_IMAGE_VALIDATION = os.getenv("ANEMIA_STRICT_IMAGE_VALIDATION", "false").strip().lower() in {
-    "1",
-    "true",
-    "yes",
-}
 BLUR_THRESHOLD = _read_float_env("ANEMIA_BLUR_THRESHOLD", 100.0)
 LOW_LIGHT_THRESHOLD = _read_float_env("ANEMIA_LOW_LIGHT_THRESHOLD", 40.0)
 HIGH_LIGHT_THRESHOLD = _read_float_env("ANEMIA_HIGH_LIGHT_THRESHOLD", 240.0)
@@ -89,10 +84,10 @@ def validate_image(image_path: str | Path) -> ImageValidationResult:
     - Unsupported file extension
     - Unreadable image
     - Smaller than 100x100 pixels
+
+    Warning rules:
     - Too blurry based on Laplacian variance
     - Too dark based on mean pixel intensity
-
-    Warning rule:
     - Overexposed images are allowed, but flagged for the caller
     """
 
@@ -151,43 +146,21 @@ def validate_image(image_path: str | Path) -> ImageValidationResult:
     if brightness_mean < LOW_LIGHT_THRESHOLD:
         image_quality = "Poor lighting"
         message = (
-            "The image is too dark for reliable analysis. Please retake it in brighter, even lighting."
+            "The image is quite dark. The AI can still provide a prediction, but reliability may be lower. Retake it in brighter, even lighting if possible."
         )
-        if STRICT_IMAGE_VALIDATION:
-            return ImageValidationResult(
-                is_valid=False,
-                image_quality=image_quality,
-                error=message,
-                width=width,
-                height=height,
-                blur_score=blur_score,
-                brightness_mean=brightness_mean,
-                file_extension=extension,
-            )
         warnings.append(message)
 
     if blur_score < BLUR_THRESHOLD:
         if image_quality == "Good":
             image_quality = "Blurry"
         message = (
-            "The image appears blurry. Please retake the scan with a steady hand and good focus."
+            "The image appears blurry. The AI can still provide a prediction, but reliability may be lower. Retake it with a steadier hand and better focus if possible."
         )
-        if STRICT_IMAGE_VALIDATION:
-            return ImageValidationResult(
-                is_valid=False,
-                image_quality=image_quality,
-                error=message,
-                width=width,
-                height=height,
-                blur_score=blur_score,
-                brightness_mean=brightness_mean,
-                file_extension=extension,
-            )
         warnings.append(message)
 
     if brightness_mean > HIGH_LIGHT_THRESHOLD:
         warnings.append(
-            "The image appears overexposed. Results are available, but a retake may improve reliability."
+            "The image appears overexposed. The AI can still provide a prediction, but a retake may improve reliability."
         )
 
     return ImageValidationResult(
@@ -227,6 +200,7 @@ def build_quality_payload(result: ImageValidationResult) -> dict[str, Any]:
         "score": round(result.blur_score, 2),
         "brightness": round(result.brightness_mean, 2),
         "warning": result.warnings[0] if result.warnings else None,
+        "warnings": list(result.warnings),
         "error": result.error,
         "image_quality": result.image_quality,
     }
