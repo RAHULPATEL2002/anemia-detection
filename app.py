@@ -9,6 +9,7 @@ import io
 import json
 import os
 import re
+import threading
 import uuid
 from collections import Counter
 from datetime import date, datetime, time, timedelta
@@ -62,6 +63,8 @@ from predict import (
 
 db = SQLAlchemy()
 _predictor: AnemiaPredictor | None = None
+_predictor_warmup_started = False
+_predictor_warmup_lock = threading.Lock()
 
 IMAGE_TYPE_OPTIONS = ("Eye Conjunctiva", "Fingernail", "Unknown")
 GENDER_OPTIONS = ("Female", "Male", "Other")
@@ -220,6 +223,30 @@ def get_predictor() -> AnemiaPredictor:
 
     _predictor = AnemiaPredictor(checkpoint_path=checkpoint)
     return _predictor
+
+
+def maybe_start_predictor_warmup() -> None:
+    """Warm the predictor in the background so the first scan request is faster."""
+
+    global _predictor_warmup_started
+
+    if _predictor is not None or latest_available_checkpoint() is None:
+        return
+
+    with _predictor_warmup_lock:
+        if _predictor_warmup_started:
+            return
+        _predictor_warmup_started = True
+
+    def warmup() -> None:
+        try:
+            get_predictor()
+        except Exception:
+            global _predictor_warmup_started
+            with _predictor_warmup_lock:
+                _predictor_warmup_started = False
+
+    threading.Thread(target=warmup, name="predictor-warmup", daemon=True).start()
 
 
 def normalize_prediction_label(predicted_class: str) -> str:
@@ -961,6 +988,9 @@ def create_app() -> Flask:
     @app.before_request
     def apply_prediction_rate_limit():
         """Throttle prediction endpoints to keep abuse and overload manageable."""
+
+        if request.endpoint not in {"predict_route", "api_predict"}:
+            maybe_start_predictor_warmup()
 
         if request.endpoint not in {"predict_route", "api_predict"}:
             return None
