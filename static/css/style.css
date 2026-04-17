@@ -260,6 +260,13 @@ a {
     color: var(--text);
 }
 
+.btn:disabled,
+.btn.disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+    filter: saturate(0.75);
+}
+
 .content-wrap {
     display: grid;
     gap: 1.5rem;
@@ -353,11 +360,21 @@ a {
     flex: 0.85;
 }
 
+.scan-tabs {
+    gap: 0.75rem;
+}
+
+.scan-tabs .nav-item {
+    flex: 1 1 0;
+}
+
 .scan-tabs .nav-link {
+    width: 100%;
     border-radius: 999px;
     padding: 0.75rem 1.1rem;
     color: var(--text);
     background: var(--surface-muted);
+    text-align: center;
 }
 
 .scan-tabs .nav-link.active {
@@ -454,6 +471,10 @@ a {
 .toolbar-actions {
     gap: 0.75rem;
     flex-wrap: wrap;
+}
+
+.camera-actions > .btn {
+    flex: 1 1 180px;
 }
 
 .quality-panel {
@@ -761,6 +782,31 @@ a {
 
     .hero-panel {
         flex-direction: column;
+    }
+
+    .page-area {
+        padding: 0.9rem;
+    }
+
+    .surface-card,
+    .surface-subcard {
+        padding: 1rem;
+        border-radius: 22px;
+    }
+
+    .dropzone,
+    .preview-placeholder,
+    .camera-feed {
+        min-height: 220px;
+    }
+
+    .preview-panel {
+        min-height: 240px;
+    }
+
+    .camera-actions > .btn,
+    #submitScanButton {
+        width: 100%;
     }
 }
 

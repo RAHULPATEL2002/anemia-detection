@@ -193,6 +193,7 @@ function bindCameraCapture() {
         if (!stream) return;
         stream.getTracks().forEach((track) => track.stop());
         stream = null;
+        video.srcObject = null;
     };
 
     startButton.addEventListener("click", async () => {
@@ -256,9 +257,17 @@ function bindCameraCapture() {
     });
 
     window.addEventListener("beforeunload", stopStreamTracks);
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden) stopStreamTracks();
+    });
 
     cameraTabButton?.addEventListener("click", () => {
         toggleCameraWarning(shouldWarnAboutHttps());
+    });
+
+    uploadTabButton?.addEventListener("click", () => {
+        stopStreamTracks();
+        toggleCameraWarning(false);
     });
 }
 
@@ -267,8 +276,21 @@ function bindScanSubmit() {
     const overlay = document.getElementById("loadingOverlay");
     const imageInput = document.getElementById("imageInput");
     const capturedInput = document.getElementById("capturedImageData");
+    const submitButton = document.getElementById("submitScanButton");
 
     if (!form || !overlay) return;
+
+    const initialDisabledState = Boolean(submitButton?.disabled);
+    const initialLabel = submitButton?.textContent || "";
+
+    const restoreSubmitState = () => {
+        overlay.classList.remove("show");
+        overlay.setAttribute("aria-hidden", "true");
+        if (submitButton) {
+            submitButton.disabled = initialDisabledState;
+            submitButton.textContent = initialLabel;
+        }
+    };
 
     form.addEventListener("submit", (event) => {
         const hasUpload = Boolean(imageInput?.files?.length);
@@ -279,9 +301,15 @@ function bindScanSubmit() {
             return;
         }
 
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.textContent = "Running Screening...";
+        }
         overlay.classList.add("show");
         overlay.setAttribute("aria-hidden", "false");
     });
+
+    window.addEventListener("pageshow", restoreSubmitState);
 }
 
 document.addEventListener("DOMContentLoaded", () => {

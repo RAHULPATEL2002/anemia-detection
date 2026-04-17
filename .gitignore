@@ -3,9 +3,12 @@
 venv/
 
 # models
-models/
+models/*
 *.pth
 *.pt
+!models/
+!models/best_model.pth
+!models/temperature_scaling.json
 
 # python
 __pycache__/
