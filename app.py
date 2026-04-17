@@ -45,6 +45,7 @@ from config import (
     REPORTS_DIR,
     STATIC_DIR,
     TEMPLATES_DIR,
+    TORCH_NUM_THREADS,
     TRAINING_CONFIG,
     UPLOADS_DIR,
     ensure_runtime_directories,
@@ -1169,6 +1170,7 @@ def create_app() -> Flask:
             "total_scans": safe_scan_count(),
             "gunicorn_workers": GUNICORN_WORKERS,
             "gunicorn_timeout": GUNICORN_TIMEOUT,
+            "torch_num_threads": TORCH_NUM_THREADS,
             "search_index_ready": search_index_is_ready(),
         }, 200
 

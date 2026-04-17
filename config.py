@@ -13,10 +13,26 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Iterable
 
+os.environ.setdefault("OMP_NUM_THREADS", os.getenv("ANEMIA_TORCH_THREADS", "1"))
+os.environ.setdefault("OPENBLAS_NUM_THREADS", os.getenv("ANEMIA_TORCH_THREADS", "1"))
+os.environ.setdefault("MKL_NUM_THREADS", os.getenv("ANEMIA_TORCH_THREADS", "1"))
+os.environ.setdefault("NUMEXPR_NUM_THREADS", os.getenv("ANEMIA_TORCH_THREADS", "1"))
+
 import torch
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+TORCH_NUM_THREADS = max(1, int(os.getenv("ANEMIA_TORCH_THREADS", "1")))
+
+try:
+    torch.set_num_threads(TORCH_NUM_THREADS)
+except RuntimeError:
+    pass
+
+try:
+    torch.set_num_interop_threads(TORCH_NUM_THREADS)
+except RuntimeError:
+    pass
 
 
 def normalize_token(value: str) -> str:
