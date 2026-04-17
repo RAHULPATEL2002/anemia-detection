@@ -118,7 +118,11 @@
             </div>
         </div>
         <div class="action-stack">
-            <a href="{{ url_for('export_pdf', scan_id=scan.id) }}" class="btn btn-primary">Download PDF Report</a>
+            {% if persisted and pdf_url %}
+                <a href="{{ pdf_url }}" class="btn btn-primary">Download PDF Report</a>
+            {% else %}
+                <button type="button" class="btn btn-primary" disabled>PDF unavailable on this server</button>
+            {% endif %}
             <button type="button" class="btn btn-outline-secondary" id="printReportButtonSecondary">Print This Result</button>
             <a href="{{ whatsapp_share_url }}" class="btn btn-success" target="_blank" rel="noopener">Share on WhatsApp</a>
             <a href="{{ email_share_url }}" class="btn btn-outline-secondary">Share by Email</a>

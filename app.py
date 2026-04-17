@@ -70,6 +70,7 @@ _predictor_load_error: str | None = None
 _predictor_warmup_started = False
 _predictor_warmup_lock = threading.Lock()
 _predictor_load_lock = threading.Lock()
+_cached_total_scans_counter = 0
 
 IMAGE_TYPE_OPTIONS = ("Eye Conjunctiva", "Fingernail", "Unknown")
 GENDER_OPTIONS = ("Female", "Male", "Other")
@@ -128,6 +129,9 @@ class Scan(db.Model):
     def public_scan_id(self) -> str:
         """Return a presentation-friendly scan identifier."""
 
+        if self.id is None:
+            timestamp = (self.created_at or datetime.utcnow()).strftime("%H%M%S")
+            return f"AV-TEMP-{timestamp}"
         return f"AV-{self.id:06d}"
 
     @property
@@ -333,6 +337,31 @@ def assess_image_quality(image_path: Path) -> dict[str, Any]:
     """Return a UI-ready quality summary backed by the shared validator."""
 
     return build_quality_payload(validate_image(image_path))
+
+
+def safe_scan_count() -> int:
+    """Return the latest scan count without letting SQLite stalls block the UI."""
+
+    global _cached_total_scans_counter
+
+    try:
+        _cached_total_scans_counter = Scan.query.count()
+    except Exception:
+        db.session.rollback()
+
+    return _cached_total_scans_counter
+
+
+def configure_sqlite_runtime() -> None:
+    """Apply SQLite pragmas that reduce lock contention on lightweight hosts."""
+
+    try:
+        db.session.execute(text("PRAGMA journal_mode=WAL"))
+        db.session.execute(text("PRAGMA synchronous=NORMAL"))
+        db.session.execute(text("PRAGMA busy_timeout=1000"))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 def normalize_gender_value(value: str) -> str:
@@ -632,7 +661,7 @@ def create_scan_record(
     image_path: Path,
     prediction: PredictionResult,
     patient_data: dict[str, Any],
-) -> Scan:
+) -> tuple[Scan, bool]:
     """Create and persist a scan record from a completed prediction."""
 
     prediction_label = prediction.prediction or normalize_prediction_label(prediction.predicted_class)
@@ -653,10 +682,19 @@ def create_scan_record(
         anemic_probability=anemic_probability,
         non_anemic_probability=non_anemic_probability,
         notes=patient_data["notes"],
+        created_at=datetime.utcnow(),
     )
+
+    persisted = False
     db.session.add(record)
-    db.session.commit()
-    return record
+    try:
+        db.session.commit()
+        persisted = True
+        safe_scan_count()
+    except Exception:
+        db.session.rollback()
+
+    return record, persisted
 
 
 def latest_scans(limit: int = 5) -> list[Scan]:
@@ -949,14 +987,17 @@ def generate_pdf_report(record: Scan) -> Path:
     return build_pdf_report(record)
 
 
-def build_prediction_response(record: Scan, quality: dict[str, Any]) -> dict[str, Any]:
+def build_prediction_response(record: Scan, quality: dict[str, Any], persisted: bool) -> dict[str, Any]:
     """Return a JSON-friendly representation of a prediction result."""
 
+    result_url = url_for("result_page", scan_id=record.id) if persisted and record.id else None
+    pdf_url = url_for("export_pdf", scan_id=record.id) if persisted and record.id else None
     return {
         "success": True,
         "id": record.id,
         "scan_id": record.id,
         "public_scan_id": record.public_scan_id,
+        "persisted": persisted,
         "patient_name": record.patient_name,
         "prediction": record.prediction,
         "confidence": record.confidence,
@@ -973,8 +1014,8 @@ def build_prediction_response(record: Scan, quality: dict[str, Any]) -> dict[str
         "quality_warnings": quality.get("warnings", []),
         "image_url": record.image_url,
         "gradcam_url": record.gradcam_url,
-        "result_url": url_for("result_page", scan_id=record.id),
-        "pdf_url": url_for("export_pdf", scan_id=record.id),
+        "result_url": result_url,
+        "pdf_url": pdf_url,
     }
 
 
@@ -982,7 +1023,7 @@ def run_prediction_workflow(
     patient_payload: dict[str, Any],
     uploaded_file=None,
     captured_image_data: str | None = None,
-) -> tuple[Scan, dict[str, Any], PredictionResult]:
+) -> tuple[Scan, dict[str, Any], PredictionResult, bool]:
     """Save the input image, run inference, and persist the scan."""
 
     if uploaded_file is not None and getattr(uploaded_file, "filename", ""):
@@ -1004,9 +1045,31 @@ def run_prediction_workflow(
     )
     if prediction.error:
         raise ValueError(prediction.error)
-    record = create_scan_record(image_path, prediction, patient_payload)
     quality = assess_image_quality(image_path)
-    return record, quality, prediction
+    record, persisted = create_scan_record(image_path, prediction, patient_payload)
+    return record, quality, prediction, persisted
+
+
+def render_result_screen(scan: Scan, quality: dict[str, Any], persisted: bool):
+    """Render the result template for either stored or transient predictions."""
+
+    share_text = scan.share_message
+    pdf_url = url_for("export_pdf", scan_id=scan.id) if persisted and scan.id else None
+    return render_template(
+        "result.html",
+        scan=scan,
+        quality=quality,
+        share_text=share_text,
+        persisted=persisted,
+        pdf_url=pdf_url,
+        whatsapp_share_url=f"https://wa.me/?text={quote(share_text)}",
+        email_share_url=(
+            "mailto:?subject="
+            + quote(f"AnemiaVision AI Result - {scan.patient_name}")
+            + "&body="
+            + quote(share_text)
+        ),
+    )
 
 
 def create_app() -> Flask:
@@ -1024,13 +1087,14 @@ def create_app() -> Flask:
 
     with app.app_context():
         db.create_all()
+        configure_sqlite_runtime()
         initialize_search_index()
 
     @app.context_processor
     def inject_shell_context() -> dict[str, Any]:
         """Provide shared layout data to all templates."""
 
-        total_scans_counter = Scan.query.count()
+        total_scans_counter = safe_scan_count()
         predictor_is_loaded = predictor_loaded()
         return {
             "total_scans_counter": total_scans_counter,
@@ -1102,7 +1166,7 @@ def create_app() -> Flask:
             "predictor_loaded": predictor_loaded(),
             "predictor_load_error": _predictor_load_error,
             "gradcam_enabled": ENABLE_GRADCAM,
-            "total_scans": Scan.query.count(),
+            "total_scans": safe_scan_count(),
             "gunicorn_workers": GUNICORN_WORKERS,
             "gunicorn_timeout": GUNICORN_TIMEOUT,
             "search_index_ready": search_index_is_ready(),
@@ -1158,7 +1222,7 @@ def create_app() -> Flask:
             return redirect(url_for("scan_page"))
 
         try:
-            record, _, _ = run_prediction_workflow(
+            record, quality, _, persisted = run_prediction_workflow(
                 patient_payload=patient_payload,
                 uploaded_file=request.files.get("image"),
                 captured_image_data=request.form.get("captured_image_data"),
@@ -1167,8 +1231,14 @@ def create_app() -> Flask:
             flash(f"Prediction failed: {exc}", "danger")
             return redirect(url_for("scan_page"))
 
-        flash("Scan completed successfully.", "success")
-        return redirect(url_for("result_page", scan_id=record.id))
+        if persisted:
+            flash("Scan completed successfully.", "success")
+        else:
+            flash(
+                "Scan completed successfully, but this server could not save the result to history. The prediction below is still valid.",
+                "warning",
+            )
+        return render_result_screen(record, quality, persisted)
 
     @app.route("/api/predict", methods=["POST"])
     def api_predict():
@@ -1196,7 +1266,7 @@ def create_app() -> Flask:
                 return jsonify({"success": False, "errors": errors}), 400
 
             try:
-                record, quality, prediction = run_prediction_workflow(
+                record, quality, prediction, persisted = run_prediction_workflow(
                     patient_payload=patient_payload,
                     uploaded_file=None,
                     captured_image_data=payload.get("image") or payload.get("image_data"),
@@ -1209,7 +1279,7 @@ def create_app() -> Flask:
                 return jsonify({"success": False, "errors": errors}), 400
 
             try:
-                record, quality, prediction = run_prediction_workflow(
+                record, quality, prediction, persisted = run_prediction_workflow(
                     patient_payload=patient_payload,
                     uploaded_file=request.files.get("image"),
                     captured_image_data=request.form.get("captured_image_data"),
@@ -1217,7 +1287,7 @@ def create_app() -> Flask:
             except Exception as exc:  # pragma: no cover - runtime guard
                 return jsonify({"success": False, "error": str(exc)}), 400
 
-        response_payload = build_prediction_response(record, quality)
+        response_payload = build_prediction_response(record, quality, persisted)
         response_payload.update(
             {
                 "processing_time_ms": prediction.processing_time_ms,
@@ -1233,20 +1303,7 @@ def create_app() -> Flask:
 
         record = Scan.query.get_or_404(scan_id)
         quality = assess_image_quality(Path(record.image_path))
-        share_text = record.share_message
-        return render_template(
-            "result.html",
-            scan=record,
-            quality=quality,
-            share_text=share_text,
-            whatsapp_share_url=f"https://wa.me/?text={quote(share_text)}",
-            email_share_url=(
-                "mailto:?subject="
-                + quote(f"AnemiaVision AI Result - {record.patient_name}")
-                + "&body="
-                + quote(share_text)
-            ),
-        )
+        return render_result_screen(record, quality, persisted=True)
 
     @app.route("/history")
     def history_page():

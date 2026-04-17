@@ -240,6 +240,14 @@ class FlaskConfig:
         default_factory=lambda: f"sqlite:///{DATABASE_PATH.as_posix()}"
     )
     sqlalchemy_track_modifications: bool = False
+    sqlalchemy_engine_options: dict[str, object] = field(
+        default_factory=lambda: {
+            "connect_args": {
+                "check_same_thread": False,
+                "timeout": float(os.getenv("ANEMIA_SQLITE_TIMEOUT_SECONDS", "1")),
+            }
+        }
+    )
     allowed_extensions: tuple[str, ...] = tuple(sorted(ext.lstrip(".") for ext in IMAGE_EXTENSIONS))
 
     def to_flask_dict(self) -> dict[str, object]:
@@ -253,6 +261,7 @@ class FlaskConfig:
             "REPORTS_FOLDER": str(self.reports_folder),
             "SQLALCHEMY_DATABASE_URI": self.database_uri,
             "SQLALCHEMY_TRACK_MODIFICATIONS": self.sqlalchemy_track_modifications,
+            "SQLALCHEMY_ENGINE_OPTIONS": self.sqlalchemy_engine_options,
         }
 
 
