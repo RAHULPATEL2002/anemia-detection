@@ -39,13 +39,22 @@
 
         <article class="surface-subcard">
             <h4>Dataset information</h4>
+            {% if not dataset_info.available %}
+                <div class="camera-warning" role="alert">
+                    <i data-lucide="database-zap"></i>
+                    <div>
+                        <strong>{{ dataset_info.warning }}</strong>
+                        <p>{{ dataset_info.warning_detail }}</p>
+                    </div>
+                </div>
+            {% endif %}
             <ul class="about-list">
-                <li>Total images: {{ dataset_info.total_images }}</li>
+                <li>Total images: {{ dataset_info.total_images if dataset_info.total_images is not none else "Unavailable on deployed server" }}</li>
                 <li>Modalities: {{ dataset_info.modalities|join(", ") }}</li>
                 <li>Class labels: {{ dataset_info.class_labels|join(" / ") }}</li>
-                <li>Train split: {{ dataset_info.split_counts.train.anemic + dataset_info.split_counts.train['non-anemic'] }} images</li>
-                <li>Validation split: {{ dataset_info.split_counts.valid.anemic + dataset_info.split_counts.valid['non-anemic'] }} images</li>
-                <li>Test split: {{ dataset_info.split_counts.test.anemic + dataset_info.split_counts.test['non-anemic'] }} images</li>
+                <li>Train split: {{ dataset_info.split_totals.train if dataset_info.split_totals.train is not none else "Unavailable" }}{% if dataset_info.split_totals.train is not none %} images{% endif %}</li>
+                <li>Validation split: {{ dataset_info.split_totals.valid if dataset_info.split_totals.valid is not none else "Unavailable" }}{% if dataset_info.split_totals.valid is not none %} images{% endif %}</li>
+                <li>Test split: {{ dataset_info.split_totals.test if dataset_info.split_totals.test is not none else "Unavailable" }}{% if dataset_info.split_totals.test is not none %} images{% endif %}</li>
             </ul>
         </article>
     </div>

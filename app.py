@@ -784,19 +784,48 @@ def analytics_payload(start_date: date | None, end_date: date | None) -> dict[st
 def dataset_overview() -> dict[str, Any]:
     """Summarize the dataset structure for the About page."""
 
-    structure = discover_dataset_structure()
-    split_counts: dict[str, dict[str, int]] = {}
+    split_counts: dict[str, dict[str, int]] = {
+        "train": {"anemic": 0, "non-anemic": 0},
+        "valid": {"anemic": 0, "non-anemic": 0},
+        "test": {"anemic": 0, "non-anemic": 0},
+    }
+
+    try:
+        structure = discover_dataset_structure()
+    except FileNotFoundError as exc:
+        return {
+            "available": False,
+            "warning": (
+                "The training dataset is not bundled with this deployment, so live dataset counts "
+                "are unavailable on this server."
+            ),
+            "warning_detail": str(exc),
+            "split_counts": split_counts,
+            "split_totals": {split_name: None for split_name in split_counts},
+            "total_images": None,
+            "modalities": ["Eye conjunctiva", "Fingernail"],
+            "class_labels": ["Anemic", "Non-Anemic"],
+        }
+
     total_images = 0
 
     for split_name, class_map in structure.items():
-        split_counts[split_name] = {}
         for class_name, directories in class_map.items():
             count = sum(len(list_image_files(directory)) for directory in directories)
             split_counts[split_name][class_name] = count
             total_images += count
 
+    split_totals = {
+        split_name: counts["anemic"] + counts["non-anemic"]
+        for split_name, counts in split_counts.items()
+    }
+
     return {
+        "available": True,
+        "warning": None,
+        "warning_detail": None,
         "split_counts": split_counts,
+        "split_totals": split_totals,
         "total_images": total_images,
         "modalities": ["Eye conjunctiva", "Fingernail"],
         "class_labels": ["Anemic", "Non-Anemic"],
