@@ -38,6 +38,7 @@ from config import (
     EVALUATION_LOGS_DIR,
     FLASK_CONFIG,
     GUNICORN_WORKERS,
+    GUNICORN_TIMEOUT,
     LOGS_DIR,
     REPORTS_DIR,
     STATIC_DIR,
@@ -1014,6 +1015,7 @@ def create_app() -> Flask:
             "checkpoint_available": latest_available_checkpoint() is not None,
             "total_scans": Scan.query.count(),
             "gunicorn_workers": GUNICORN_WORKERS,
+            "gunicorn_timeout": GUNICORN_TIMEOUT,
             "search_index_ready": search_index_is_ready(),
         }, 200
 

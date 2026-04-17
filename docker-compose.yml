@@ -15,7 +15,8 @@ services:
       ANEMIA_DATASET_ROOT: "/app/data"
       ANEMIA_RATE_LIMIT_PER_MINUTE: "10"
       ANEMIA_RATE_LIMIT_WINDOW_SECONDS: "60"
-      ANEMIA_GUNICORN_WORKERS: "2"
+      ANEMIA_GUNICORN_WORKERS: "1"
+      ANEMIA_GUNICORN_TIMEOUT: "180"
     volumes:
       - ./data:/app/data
       - ./database:/app/database
