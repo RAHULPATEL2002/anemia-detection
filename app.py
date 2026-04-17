@@ -1101,6 +1101,7 @@ def create_app() -> Flask:
             "checkpoint_available": latest_available_checkpoint() is not None,
             "predictor_loaded": predictor_loaded(),
             "predictor_load_error": _predictor_load_error,
+            "gradcam_enabled": ENABLE_GRADCAM,
             "total_scans": Scan.query.count(),
             "gunicorn_workers": GUNICORN_WORKERS,
             "gunicorn_timeout": GUNICORN_TIMEOUT,
