@@ -10,12 +10,23 @@
             <span class="eyebrow">Acquisition workflow</span>
             <h3>Capture a new screening image</h3>
         </div>
-        {% if checkpoint_available %}
-            <span class="badge text-bg-success">Model Ready</span>
+        {% if predictor_loaded %}
+            <span class="badge text-bg-success" id="modelStatusBadge">Model Ready</span>
+        {% elif checkpoint_available %}
+            <span class="badge text-bg-warning" id="modelStatusBadge">Model Loading</span>
         {% else %}
-            <span class="badge text-bg-warning">Model Not Ready</span>
+            <span class="badge text-bg-warning" id="modelStatusBadge">Model Not Ready</span>
         {% endif %}
     </div>
+    <p class="small text-secondary mt-2 mb-0" id="modelStatusHint">
+        {% if predictor_loaded %}
+            The AI model is loaded on this server and ready for screening.
+        {% elif checkpoint_available %}
+            The AI model file is present, but this server is still loading it. Keep this page open until the badge changes to Model Ready.
+        {% else %}
+            A trained checkpoint is not available on this deployment yet.
+        {% endif %}
+    </p>
 
     <form id="scanForm" method="post" action="{{ url_for('predict_route') }}" enctype="multipart/form-data" class="scan-layout">
         <div class="scan-capture-panel">
@@ -118,7 +129,7 @@
                     <textarea class="form-control" id="notes" name="notes" rows="4"></textarea>
                 </div>
                 <div class="col-12">
-                    <button class="btn btn-primary btn-lg w-100" id="submitScanButton" {% if not checkpoint_available %}disabled{% endif %}>
+                    <button class="btn btn-primary btn-lg w-100" id="submitScanButton" {% if not predictor_loaded %}disabled{% endif %}>
                         Run AI Screening
                     </button>
                 </div>

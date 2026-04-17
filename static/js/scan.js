@@ -312,8 +312,67 @@ function bindScanSubmit() {
     window.addEventListener("pageshow", restoreSubmitState);
 }
 
+function bindModelReadiness() {
+    const submitButton = document.getElementById("submitScanButton");
+    const badge = document.getElementById("modelStatusBadge");
+    const hint = document.getElementById("modelStatusHint");
+
+    if (!submitButton || !badge || !hint || !submitButton.disabled) return;
+
+    const setReadyState = (isReady) => {
+        submitButton.disabled = !isReady;
+        badge.textContent = isReady ? "Model Ready" : "Model Loading";
+        badge.classList.toggle("text-bg-success", isReady);
+        badge.classList.toggle("text-bg-warning", !isReady);
+        hint.textContent = isReady
+            ? "The AI model is loaded on this server and ready for screening."
+            : "The AI model is still loading on this server. Keep this page open and the scan button will enable automatically.";
+    };
+
+    let attempts = 0;
+    const maxAttempts = 90;
+
+    const poll = async () => {
+        attempts += 1;
+        try {
+            const response = await fetch("/health", {
+                headers: { Accept: "application/json" },
+                cache: "no-store"
+            });
+            if (!response.ok) return;
+
+            const payload = await response.json();
+            if (payload.predictor_loaded) {
+                setReadyState(true);
+                return true;
+            }
+
+            if (!payload.checkpoint_available) {
+                badge.textContent = "Model Not Ready";
+                hint.textContent = "A trained checkpoint is not available on this deployment yet.";
+                return true;
+            }
+        } catch (error) {
+            // Keep polling quietly; the page may still be waking up.
+        }
+
+        setReadyState(false);
+        return attempts >= maxAttempts;
+    };
+
+    poll().then((done) => {
+        if (done) return;
+
+        const timer = window.setInterval(async () => {
+            const shouldStop = await poll();
+            if (shouldStop) window.clearInterval(timer);
+        }, 2000);
+    });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     bindUploadZone();
     bindCameraCapture();
     bindScanSubmit();
+    bindModelReadiness();
 });

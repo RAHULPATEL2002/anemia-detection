@@ -63,8 +63,10 @@ from predict import (
 
 db = SQLAlchemy()
 _predictor: AnemiaPredictor | None = None
+_predictor_load_error: str | None = None
 _predictor_warmup_started = False
 _predictor_warmup_lock = threading.Lock()
+_predictor_load_lock = threading.Lock()
 
 IMAGE_TYPE_OPTIONS = ("Eye Conjunctiva", "Fingernail", "Unknown")
 GENDER_OPTIONS = ("Female", "Male", "Other")
@@ -210,7 +212,7 @@ def allowed_file(filename: str, mimetype: str | None = None) -> bool:
 def get_predictor() -> AnemiaPredictor:
     """Lazy-load the predictor once a trained checkpoint is available."""
 
-    global _predictor
+    global _predictor, _predictor_load_error
 
     if _predictor is not None:
         return _predictor
@@ -221,8 +223,36 @@ def get_predictor() -> AnemiaPredictor:
             "No trained checkpoint is available yet. Run train.py before serving predictions."
         )
 
-    _predictor = AnemiaPredictor(checkpoint_path=checkpoint)
+    with _predictor_load_lock:
+        if _predictor is not None:
+            return _predictor
+
+        try:
+            _predictor = AnemiaPredictor(checkpoint_path=checkpoint)
+            _predictor_load_error = None
+        except Exception as exc:
+            _predictor_load_error = str(exc)
+            raise
+
     return _predictor
+
+
+def predictor_loaded() -> bool:
+    """Return whether this worker already has the predictor loaded."""
+
+    return _predictor is not None
+
+
+def eager_load_predictor() -> None:
+    """Load the predictor during worker startup so the first scan does not cold-start."""
+
+    if latest_available_checkpoint() is None or predictor_loaded():
+        return
+
+    try:
+        get_predictor()
+    except Exception:
+        pass
 
 
 def maybe_start_predictor_warmup() -> None:
@@ -978,10 +1008,13 @@ def create_app() -> Flask:
         """Provide shared layout data to all templates."""
 
         total_scans_counter = Scan.query.count()
+        predictor_is_loaded = predictor_loaded()
         return {
             "total_scans_counter": total_scans_counter,
             "current_year": datetime.utcnow().year,
             "checkpoint_available": latest_available_checkpoint() is not None,
+            "predictor_loaded": predictor_is_loaded,
+            "predictor_load_error": _predictor_load_error,
             "disclaimer_text": DISCLAIMER_TEXT,
         }
 
@@ -1043,6 +1076,8 @@ def create_app() -> Flask:
         return {
             "status": "ok",
             "checkpoint_available": latest_available_checkpoint() is not None,
+            "predictor_loaded": predictor_loaded(),
+            "predictor_load_error": _predictor_load_error,
             "total_scans": Scan.query.count(),
             "gunicorn_workers": GUNICORN_WORKERS,
             "gunicorn_timeout": GUNICORN_TIMEOUT,
@@ -1084,6 +1119,14 @@ def create_app() -> Flask:
             flash("A trained checkpoint is not available yet. Run train.py first.", "warning")
             return redirect(url_for("scan_page"))
 
+        if not predictor_loaded():
+            maybe_start_predictor_warmup()
+            flash(
+                "The AI model is still starting on this server. Please wait a few seconds until the badge shows Model Ready, then try again.",
+                "warning",
+            )
+            return redirect(url_for("scan_page"))
+
         patient_payload, errors = validate_patient_payload(request.form.to_dict())
         if errors:
             for error in errors:
@@ -1109,6 +1152,18 @@ def create_app() -> Flask:
 
         if latest_available_checkpoint() is None:
             return jsonify({"success": False, "error": "No trained checkpoint is available yet."}), 503
+
+        if not predictor_loaded():
+            maybe_start_predictor_warmup()
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "The AI model is still starting on this server. Please wait a few seconds and try again.",
+                    }
+                ),
+                503,
+            )
 
         if request.is_json:
             payload = request.get_json(silent=True) or {}
@@ -1312,6 +1367,7 @@ def create_app() -> Flask:
 
 
 app = create_app()
+eager_load_predictor()
 
 
 if __name__ == "__main__":
