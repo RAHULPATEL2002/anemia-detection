@@ -137,6 +137,11 @@ API_RATE_LIMIT_PER_MINUTE = int(os.getenv("ANEMIA_RATE_LIMIT_PER_MINUTE", "10"))
 API_RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("ANEMIA_RATE_LIMIT_WINDOW_SECONDS", "60"))
 GUNICORN_WORKERS = int(os.getenv("ANEMIA_GUNICORN_WORKERS", "1"))
 GUNICORN_TIMEOUT = int(os.getenv("ANEMIA_GUNICORN_TIMEOUT", "180"))
+ENABLE_GRADCAM = os.getenv("ANEMIA_ENABLE_GRADCAM", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+}
 
 
 @dataclass(frozen=True)

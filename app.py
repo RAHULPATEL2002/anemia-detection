@@ -36,6 +36,7 @@ from werkzeug.utils import secure_filename
 from config import (
     API_RATE_LIMIT_PER_MINUTE,
     API_RATE_LIMIT_WINDOW_SECONDS,
+    ENABLE_GRADCAM,
     EVALUATION_LOGS_DIR,
     FLASK_CONFIG,
     GUNICORN_WORKERS,
@@ -55,10 +56,12 @@ from pdf_report import generate_pdf_report as build_pdf_report
 from predict import (
     AnemiaPredictor,
     PredictionResult,
+    autocast_context,
     compute_risk_metadata as prediction_compute_risk_metadata,
     estimate_hemoglobin_range as prediction_estimate_hemoglobin_range,
     medical_advice_lines,
 )
+import torch
 
 
 db = SQLAlchemy()
@@ -250,7 +253,27 @@ def eager_load_predictor() -> None:
         return
 
     try:
-        get_predictor()
+        predictor = get_predictor()
+        warm_predictor_runtime(predictor)
+    except Exception:
+        pass
+
+
+def warm_predictor_runtime(predictor: AnemiaPredictor) -> None:
+    """Run one dummy forward pass so the first real scan does not pay the warmup cost."""
+
+    try:
+        predictor.model.eval()
+        image_height, image_width = TRAINING_CONFIG.image_size
+        warm_tensor = torch.zeros(
+            (1, 3, image_height, image_width),
+            dtype=torch.float32,
+            device=predictor.device,
+        )
+        with torch.no_grad():
+            with autocast_context():
+                logits = predictor.model(warm_tensor)
+            predictor.temperature_scaler.scale(logits.float())
     except Exception:
         pass
 
@@ -977,7 +1000,7 @@ def run_prediction_workflow(
     prediction = predictor.predict_image(
         image_path,
         patient_info=patient_payload,
-        save_gradcam=True,
+        save_gradcam=ENABLE_GRADCAM,
     )
     if prediction.error:
         raise ValueError(prediction.error)
