@@ -20,6 +20,7 @@ from urllib.parse import quote
 from flask import (
     Flask,
     Response,
+    abort,
     flash,
     jsonify,
     redirect,
@@ -42,6 +43,7 @@ from config import (
     GUNICORN_WORKERS,
     GUNICORN_TIMEOUT,
     LOGS_DIR,
+    RUNTIME_ROOT,
     REPORTS_DIR,
     STATIC_DIR,
     TEMPLATES_DIR,
@@ -62,6 +64,7 @@ from predict import (
     estimate_hemoglobin_range as prediction_estimate_hemoglobin_range,
     medical_advice_lines,
 )
+from storage_utils import extract_storage_filename, resolve_storage_path, storage_reference_for_path
 import torch
 
 
@@ -149,17 +152,33 @@ class Scan(db.Model):
 
     @property
     def image_url(self) -> str:
-        """Resolve the uploaded image into the static folder."""
+        """Resolve the uploaded image into the media-serving route."""
 
-        return url_for("static", filename=f"uploads/{Path(self.image_path).name}")
+        filename = extract_storage_filename(self.image_path)
+        return url_for("uploaded_media", filename=filename) if filename else ""
 
     @property
     def gradcam_url(self) -> str | None:
-        """Resolve the Grad-CAM image into the static folder."""
+        """Resolve the Grad-CAM image into the media-serving route."""
 
         if not self.gradcam_path:
             return None
-        return url_for("static", filename=f"gradcam/{Path(self.gradcam_path).name}")
+        filename = extract_storage_filename(self.gradcam_path)
+        return url_for("gradcam_media", filename=filename) if filename else None
+
+    @property
+    def image_file_path(self) -> Path | None:
+        """Resolve the stored upload reference into a local file path."""
+
+        return resolve_storage_path(self.image_path, "uploads")
+
+    @property
+    def gradcam_file_path(self) -> Path | None:
+        """Resolve the stored Grad-CAM reference into a local file path."""
+
+        if not self.gradcam_path:
+            return None
+        return resolve_storage_path(self.gradcam_path, "gradcam")
 
     @property
     def result_color_class(self) -> str:
@@ -675,8 +694,10 @@ def create_scan_record(
         gender=patient_data["gender"],
         phone=patient_data["phone"],
         image_type=patient_data["image_type"],
-        image_path=str(image_path),
-        gradcam_path=prediction.gradcam_path,
+        image_path=storage_reference_for_path(image_path, "uploads") or str(image_path),
+        gradcam_path=storage_reference_for_path(prediction.gradcam_path, "gradcam")
+        if prediction.gradcam_path
+        else None,
         prediction=prediction_label,
         confidence=prediction.confidence,
         risk_level=prediction.risk_level,
@@ -1172,7 +1193,38 @@ def create_app() -> Flask:
             "gunicorn_timeout": GUNICORN_TIMEOUT,
             "torch_num_threads": TORCH_NUM_THREADS,
             "search_index_ready": search_index_is_ready(),
+            "runtime_root": str(RUNTIME_ROOT) if RUNTIME_ROOT is not None else None,
+            "uploads_dir": str(UPLOADS_DIR),
+            "gradcam_dir": str(FLASK_CONFIG.gradcam_folder),
         }, 200
+
+    def serve_media_file(kind: str, filename: str):
+        """Serve uploaded media from the active runtime storage directory."""
+
+        if kind not in {"uploads", "gradcam"}:
+            abort(404)
+
+        safe_filename = extract_storage_filename(filename)
+        if not safe_filename:
+            abort(404)
+
+        resolved_path = resolve_storage_path(f"{kind}/{safe_filename}", kind)
+        if resolved_path is None or not resolved_path.exists():
+            abort(404)
+
+        return send_file(resolved_path)
+
+    @app.route("/media/uploads/<path:filename>")
+    def uploaded_media(filename: str):
+        """Serve one persisted uploaded scan image."""
+
+        return serve_media_file("uploads", filename)
+
+    @app.route("/media/gradcam/<path:filename>")
+    def gradcam_media(filename: str):
+        """Serve one persisted Grad-CAM image."""
+
+        return serve_media_file("gradcam", filename)
 
     @app.route("/")
     def index():
@@ -1304,7 +1356,7 @@ def create_app() -> Flask:
         """Show the full result page for one scan."""
 
         record = Scan.query.get_or_404(scan_id)
-        quality = assess_image_quality(Path(record.image_path))
+        quality = assess_image_quality(record.image_file_path or Path(str(record.image_path)))
         return render_result_screen(record, quality, persisted=True)
 
     @app.route("/history")
@@ -1396,13 +1448,12 @@ def create_app() -> Flask:
 
         record = Scan.query.get_or_404(scan_id)
 
-        for file_path in (record.image_path, record.gradcam_path):
+        for file_path in (record.image_file_path, record.gradcam_file_path):
             if not file_path:
                 continue
             try:
-                resolved = Path(file_path).resolve()
-                if resolved.exists():
-                    resolved.unlink()
+                if file_path.exists():
+                    file_path.unlink()
             except OSError:
                 pass
 

@@ -14,6 +14,7 @@ from reportlab.pdfgen import canvas
 
 from config import REPORTS_DIR
 from predict import medical_advice_lines
+from storage_utils import resolve_storage_path
 
 
 PRIMARY_TEAL = colors.HexColor("#0A6E6E")
@@ -142,8 +143,12 @@ def _draw_images(pdf: canvas.Canvas, x: int, y: int, record: Any) -> int:
 
     image_width = 238
     image_height = 158
-    original_path = Path(str(getattr(record, "image_path", "")))
-    gradcam_path = Path(str(getattr(record, "gradcam_path", ""))) if getattr(record, "gradcam_path", None) else None
+    original_path = resolve_storage_path(getattr(record, "image_path", None), "uploads")
+    gradcam_path = (
+        resolve_storage_path(getattr(record, "gradcam_path", None), "gradcam")
+        if getattr(record, "gradcam_path", None)
+        else None
+    )
 
     pdf.setFont("Helvetica-Bold", 13)
     pdf.setFillColor(TEXT_NAVY)

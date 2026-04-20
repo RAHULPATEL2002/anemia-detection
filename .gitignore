@@ -17,3 +17,12 @@ __pycache__/
 # dataset
 data/
 dataset/
+
+# runtime data
+database/*.db
+reports/*.pdf
+logs/*.log
+logs/evaluation/
+static/uploads/*
+static/gradcam/*
+runtime/

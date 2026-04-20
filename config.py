@@ -50,6 +50,28 @@ def resolve_path(path_value: str | Path, base_dir: Path = PROJECT_ROOT) -> Path:
     return (base_dir / path).resolve()
 
 
+def resolve_runtime_root() -> Path | None:
+    """Return the configured persistent runtime root when one is available."""
+
+    explicit_root = os.getenv("ANEMIA_RUNTIME_ROOT")
+    if explicit_root:
+        return resolve_path(explicit_root)
+
+    if not os.getenv("RENDER"):
+        return None
+
+    for env_key in ("RENDER_DISK_ROOT", "RENDER_DATA_DIR", "RENDER_PERSISTENT_DIR"):
+        candidate = os.getenv(env_key)
+        if candidate:
+            return resolve_path(candidate)
+
+    default_render_root = Path("/var/data")
+    if default_render_root.exists():
+        return (default_render_root / "anemiavision").resolve()
+
+    return None
+
+
 def first_existing_path(candidates: Iterable[str | Path]) -> Path:
     """Return the first path that exists, or the first resolved candidate."""
 
@@ -121,18 +143,30 @@ DATASET_ROOT = first_existing_path(
 TRAIN_DATASET_DIR = find_split_directory(DATASET_ROOT, ("train", "training"))
 VALID_DATASET_DIR = find_split_directory(DATASET_ROOT, ("valid", "val", "validation"))
 TEST_DATASET_DIR = find_split_directory(DATASET_ROOT, ("test", "testing"))
+RUNTIME_ROOT = resolve_runtime_root()
+RUNTIME_MEDIA_ROOT = RUNTIME_ROOT / "media" if RUNTIME_ROOT is not None else None
 
 MODELS_DIR = resolve_path(os.getenv("ANEMIA_MODELS_DIR", PROJECT_ROOT / "models"))
 STATIC_DIR = resolve_path(os.getenv("ANEMIA_STATIC_DIR", PROJECT_ROOT / "static"))
 TEMPLATES_DIR = resolve_path(os.getenv("ANEMIA_TEMPLATES_DIR", PROJECT_ROOT / "templates"))
-DATABASE_DIR = resolve_path(os.getenv("ANEMIA_DATABASE_DIR", PROJECT_ROOT / "database"))
-REPORTS_DIR = resolve_path(os.getenv("ANEMIA_REPORTS_DIR", PROJECT_ROOT / "reports"))
-LOGS_DIR = resolve_path(os.getenv("ANEMIA_LOGS_DIR", PROJECT_ROOT / "logs"))
+DATABASE_DIR = resolve_path(
+    os.getenv("ANEMIA_DATABASE_DIR", (RUNTIME_ROOT / "database") if RUNTIME_ROOT else (PROJECT_ROOT / "database"))
+)
+REPORTS_DIR = resolve_path(
+    os.getenv("ANEMIA_REPORTS_DIR", (RUNTIME_ROOT / "reports") if RUNTIME_ROOT else (PROJECT_ROOT / "reports"))
+)
+LOGS_DIR = resolve_path(
+    os.getenv("ANEMIA_LOGS_DIR", (RUNTIME_ROOT / "logs") if RUNTIME_ROOT else (PROJECT_ROOT / "logs"))
+)
 EVALUATION_LOGS_DIR = resolve_path(
     os.getenv("ANEMIA_EVALUATION_LOGS_DIR", LOGS_DIR / "evaluation")
 )
-UPLOADS_DIR = resolve_path(os.getenv("ANEMIA_UPLOADS_DIR", STATIC_DIR / "uploads"))
-GRADCAM_DIR = resolve_path(os.getenv("ANEMIA_GRADCAM_DIR", STATIC_DIR / "gradcam"))
+UPLOADS_DIR = resolve_path(
+    os.getenv("ANEMIA_UPLOADS_DIR", (RUNTIME_MEDIA_ROOT / "uploads") if RUNTIME_MEDIA_ROOT else (STATIC_DIR / "uploads"))
+)
+GRADCAM_DIR = resolve_path(
+    os.getenv("ANEMIA_GRADCAM_DIR", (RUNTIME_MEDIA_ROOT / "gradcam") if RUNTIME_MEDIA_ROOT else (STATIC_DIR / "gradcam"))
+)
 
 DATABASE_PATH = resolve_path(os.getenv("ANEMIA_DATABASE_PATH", DATABASE_DIR / "anemia_vision.db"))
 BEST_CHECKPOINT_PATH = resolve_path(
@@ -153,7 +187,7 @@ API_RATE_LIMIT_PER_MINUTE = int(os.getenv("ANEMIA_RATE_LIMIT_PER_MINUTE", "10"))
 API_RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("ANEMIA_RATE_LIMIT_WINDOW_SECONDS", "60"))
 GUNICORN_WORKERS = int(os.getenv("ANEMIA_GUNICORN_WORKERS", "1"))
 GUNICORN_TIMEOUT = int(os.getenv("ANEMIA_GUNICORN_TIMEOUT", "180"))
-ENABLE_GRADCAM = os.getenv("ANEMIA_ENABLE_GRADCAM", "false").strip().lower() in {
+ENABLE_GRADCAM = os.getenv("ANEMIA_ENABLE_GRADCAM", "true").strip().lower() in {
     "1",
     "true",
     "yes",
@@ -315,6 +349,7 @@ def serializable_project_config() -> dict[str, object]:
 
     return {
         "project_root": str(PROJECT_ROOT),
+        "runtime_root": str(RUNTIME_ROOT) if RUNTIME_ROOT is not None else None,
         "dataset_root": str(DATASET_ROOT),
         "train_dataset_dir": str(TRAIN_DATASET_DIR),
         "valid_dataset_dir": str(VALID_DATASET_DIR),

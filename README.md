@@ -168,6 +168,20 @@ Health check:
 GET /health
 ```
 
+### Render (persistent data + Grad-CAM)
+
+Render web services use an ephemeral filesystem by default. Without a persistent disk, any new SQLite records, uploaded scan images, Grad-CAM outputs, and generated PDF reports can disappear after a restart or redeploy.
+
+Recommended setup:
+
+1. Use a Render plan that supports persistent disks.
+2. Attach a disk with mount path `/var/data`.
+3. Set `ANEMIA_RUNTIME_ROOT=/var/data/anemiavision`.
+4. Set `ANEMIA_ENABLE_GRADCAM=true`.
+5. Redeploy the service.
+
+This repository also includes a sample [`render.yaml`](render.yaml) blueprint with the same settings.
+
 ## API Documentation
 
 ### POST `/api/predict`
@@ -203,7 +217,7 @@ Example success response:
   "confidence": 0.912,
   "risk_level": "Low Risk",
   "medical_advice": "Results look healthy at this screening level, with no strong visual signs of anemia detected.",
-  "gradcam_url": "/static/gradcam/scan_042.jpg",
+  "gradcam_url": "/media/gradcam/scan_042.jpg",
   "result_url": "/result/42",
   "pdf_url": "/export/pdf/42"
 }
@@ -242,6 +256,9 @@ When available, real metrics are loaded from the latest evaluation artifacts in 
 
 - `Dockerfile` uses `python:3.10-slim`
 - Gunicorn runs with `2` workers on port `5000`
+- Runtime data can be redirected with `ANEMIA_RUNTIME_ROOT`
+- Uploaded scan images are served from `/media/uploads/<filename>`
+- Grad-CAM images are served from `/media/gradcam/<filename>`
 - `docker-compose.yml` mounts persistent volumes for:
   - `database/`
   - `models/`
@@ -249,6 +266,7 @@ When available, real metrics are loaded from the latest evaluation artifacts in 
   - `logs/`
   - `static/uploads/`
   - `static/gradcam/`
+- `render.yaml` mounts a persistent disk at `/var/data` and stores database, reports, uploads, and Grad-CAM outputs under `/var/data/anemiavision`
 - The `/health` endpoint is used by both Docker and application readiness checks
 
 ## Screenshots

@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: anemia-detection
+    runtime: docker
+    plan: starter
+    numInstances: 1
+    healthCheckPath: /health
+    disk:
+      name: runtime-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: ANEMIA_RUNTIME_ROOT
+        value: /var/data/anemiavision
+      - key: ANEMIA_ENABLE_GRADCAM
+        value: "true"
+      - key: ANEMIA_GUNICORN_WORKERS
+        value: "1"
+      - key: ANEMIA_GUNICORN_TIMEOUT
+        value: "180"
+      - key: ANEMIA_TORCH_THREADS
+        value: "1"
