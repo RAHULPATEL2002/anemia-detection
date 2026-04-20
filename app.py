@@ -37,6 +37,7 @@ from werkzeug.utils import secure_filename
 from config import (
     API_RATE_LIMIT_PER_MINUTE,
     API_RATE_LIMIT_WINDOW_SECONDS,
+    DATABASE_BACKEND,
     ENABLE_GRADCAM,
     EVALUATION_LOGS_DIR,
     FLASK_CONFIG,
@@ -375,6 +376,9 @@ def safe_scan_count() -> int:
 def configure_sqlite_runtime() -> None:
     """Apply SQLite pragmas that reduce lock contention on lightweight hosts."""
 
+    if DATABASE_BACKEND != "sqlite":
+        return
+
     try:
         db.session.execute(text("PRAGMA journal_mode=WAL"))
         db.session.execute(text("PRAGMA synchronous=NORMAL"))
@@ -594,6 +598,9 @@ def enforce_rate_limit(endpoint: str) -> tuple[bool, int]:
 def initialize_search_index() -> None:
     """Create the SQLite full-text index used for patient-name search."""
 
+    if DATABASE_BACKEND != "sqlite":
+        return
+
     try:
         db.session.execute(
             text(
@@ -634,6 +641,9 @@ def initialize_search_index() -> None:
 def search_index_is_ready() -> bool:
     """Return whether the patient-name full-text index is available."""
 
+    if DATABASE_BACKEND != "sqlite":
+        return True
+
     try:
         row = db.session.execute(
             text(
@@ -658,6 +668,9 @@ def build_patient_name_match_query(search_term: str) -> str | None:
 
 def patient_name_match_ids(search_term: str) -> list[int]:
     """Look up scan ids using the SQLite FTS patient-name index."""
+
+    if DATABASE_BACKEND != "sqlite":
+        return []
 
     match_query = build_patient_name_match_query(search_term)
     if not match_query:
@@ -1193,6 +1206,7 @@ def create_app() -> Flask:
             "gunicorn_timeout": GUNICORN_TIMEOUT,
             "torch_num_threads": TORCH_NUM_THREADS,
             "search_index_ready": search_index_is_ready(),
+            "database_backend": DATABASE_BACKEND,
             "runtime_root": str(RUNTIME_ROOT) if RUNTIME_ROOT is not None else None,
             "uploads_dir": str(UPLOADS_DIR),
             "gradcam_dir": str(FLASK_CONFIG.gradcam_folder),

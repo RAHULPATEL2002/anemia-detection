@@ -170,17 +170,18 @@ GET /health
 
 ### Render (persistent data + Grad-CAM)
 
-Render web services use an ephemeral filesystem by default. Without a persistent disk, any new SQLite records, uploaded scan images, Grad-CAM outputs, and generated PDF reports can disappear after a restart or redeploy.
+Render web services use an ephemeral filesystem by default. If the app stores patient history in a local SQLite file inside the service, new records can disappear after a restart or redeploy and the app may appear to reset back to whatever database file was baked into the repo image.
 
 Recommended setup:
 
 1. Use a Render plan that supports persistent disks.
-2. Attach a disk with mount path `/var/data`.
-3. Set `ANEMIA_RUNTIME_ROOT=/var/data/anemiavision`.
-4. Set `ANEMIA_ENABLE_GRADCAM=true`.
-5. Redeploy the service.
+2. Use a managed Postgres database for patient history by setting `DATABASE_URL`.
+3. Attach a disk with mount path `/var/data` so uploaded images, Grad-CAM outputs, and PDF reports persist.
+4. Set `ANEMIA_RUNTIME_ROOT=/var/data/anemiavision`.
+5. Set `ANEMIA_ENABLE_GRADCAM=true`.
+6. Redeploy the service.
 
-This repository also includes a sample [`render.yaml`](render.yaml) blueprint with the same settings.
+This repository includes a sample [`render.yaml`](render.yaml) blueprint that provisions both the web service and a managed Render Postgres database. The tracked `database/anemia_vision.db` file should not be kept in Git for production deployments.
 
 ## API Documentation
 
@@ -256,17 +257,17 @@ When available, real metrics are loaded from the latest evaluation artifacts in 
 
 - `Dockerfile` uses `python:3.10-slim`
 - Gunicorn runs with `2` workers on port `5000`
+- Patient history can be stored in Postgres via `DATABASE_URL`
 - Runtime data can be redirected with `ANEMIA_RUNTIME_ROOT`
 - Uploaded scan images are served from `/media/uploads/<filename>`
 - Grad-CAM images are served from `/media/gradcam/<filename>`
 - `docker-compose.yml` mounts persistent volumes for:
-  - `database/`
   - `models/`
   - `reports/`
   - `logs/`
   - `static/uploads/`
   - `static/gradcam/`
-- `render.yaml` mounts a persistent disk at `/var/data` and stores database, reports, uploads, and Grad-CAM outputs under `/var/data/anemiavision`
+- `render.yaml` provisions a Render Postgres database for patient history and mounts a persistent disk at `/var/data` for uploaded media and reports
 - The `/health` endpoint is used by both Docker and application readiness checks
 
 ## Screenshots

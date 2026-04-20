@@ -72,6 +72,54 @@ def resolve_runtime_root() -> Path | None:
     return None
 
 
+def normalize_database_uri(uri: str) -> str:
+    """Normalize incoming database URLs for SQLAlchemy compatibility."""
+
+    normalized = uri.strip()
+    if normalized.startswith("postgres://"):
+        normalized = "postgresql://" + normalized[len("postgres://") :]
+
+    if normalized.startswith("postgresql://") and "://" in normalized:
+        scheme, remainder = normalized.split("://", 1)
+        if "+" not in scheme:
+            normalized = f"postgresql+psycopg://{remainder}"
+
+    return normalized
+
+
+def build_database_uri() -> str:
+    """Resolve the active database URI from the environment or local SQLite."""
+
+    explicit_uri = os.getenv("SQLALCHEMY_DATABASE_URI") or os.getenv("DATABASE_URL")
+    if explicit_uri:
+        return normalize_database_uri(explicit_uri)
+    return f"sqlite:///{DATABASE_PATH.as_posix()}"
+
+
+def database_backend_name(database_uri: str) -> str:
+    """Return the backend token used by the configured database URI."""
+
+    scheme = database_uri.split("://", 1)[0].lower()
+    return scheme.split("+", 1)[0]
+
+
+def build_engine_options(database_uri: str) -> dict[str, object]:
+    """Build SQLAlchemy engine options appropriate for the active backend."""
+
+    if database_backend_name(database_uri) == "sqlite":
+        return {
+            "connect_args": {
+                "check_same_thread": False,
+                "timeout": float(os.getenv("ANEMIA_SQLITE_TIMEOUT_SECONDS", "1")),
+            }
+        }
+
+    return {
+        "pool_pre_ping": True,
+        "pool_recycle": int(os.getenv("ANEMIA_DB_POOL_RECYCLE_SECONDS", "300")),
+    }
+
+
 def first_existing_path(candidates: Iterable[str | Path]) -> Path:
     """Return the first path that exists, or the first resolved candidate."""
 
@@ -169,6 +217,8 @@ GRADCAM_DIR = resolve_path(
 )
 
 DATABASE_PATH = resolve_path(os.getenv("ANEMIA_DATABASE_PATH", DATABASE_DIR / "anemia_vision.db"))
+DATABASE_URI = build_database_uri()
+DATABASE_BACKEND = database_backend_name(DATABASE_URI)
 BEST_CHECKPOINT_PATH = resolve_path(
     os.getenv("ANEMIA_BEST_CHECKPOINT", MODELS_DIR / "best_model.pth")
 )
@@ -287,16 +337,11 @@ class FlaskConfig:
     gradcam_folder: Path = GRADCAM_DIR
     reports_folder: Path = REPORTS_DIR
     database_uri: str = field(
-        default_factory=lambda: f"sqlite:///{DATABASE_PATH.as_posix()}"
+        default_factory=lambda: DATABASE_URI
     )
     sqlalchemy_track_modifications: bool = False
     sqlalchemy_engine_options: dict[str, object] = field(
-        default_factory=lambda: {
-            "connect_args": {
-                "check_same_thread": False,
-                "timeout": float(os.getenv("ANEMIA_SQLITE_TIMEOUT_SECONDS", "1")),
-            }
-        }
+        default_factory=lambda: build_engine_options(DATABASE_URI)
     )
     allowed_extensions: tuple[str, ...] = tuple(sorted(ext.lstrip(".") for ext in IMAGE_EXTENSIONS))
 
@@ -356,6 +401,8 @@ def serializable_project_config() -> dict[str, object]:
         "test_dataset_dir": str(TEST_DATASET_DIR),
         "models_dir": str(MODELS_DIR),
         "database_path": str(DATABASE_PATH),
+        "database_uri": DATABASE_URI,
+        "database_backend": DATABASE_BACKEND,
         "best_checkpoint_path": str(BEST_CHECKPOINT_PATH),
         "latest_checkpoint_path": str(LATEST_CHECKPOINT_PATH),
         "evaluation_logs_dir": str(EVALUATION_LOGS_DIR),
