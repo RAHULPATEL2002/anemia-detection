@@ -272,9 +272,9 @@ class TrainingConfig:
         if resolved_profile == "fast":
             object.__setattr__(self, "image_size", (224, 224))
             object.__setattr__(self, "batch_size", min(self.batch_size, 16))
-            object.__setattr__(self, "epochs", min(self.epochs, 12))
-            object.__setattr__(self, "early_stopping_patience", min(self.early_stopping_patience, 4))
-            object.__setattr__(self, "warmup_epochs", min(self.warmup_epochs, 2))
+            object.__setattr__(self, "epochs", min(self.epochs, 50))          # allow more epochs
+            object.__setattr__(self, "early_stopping_patience", min(self.early_stopping_patience, 10))
+            object.__setattr__(self, "warmup_epochs", min(self.warmup_epochs, 3))
 
         object.__setattr__(self, "use_amp", self.device.type == "cuda")
         object.__setattr__(self, "pin_memory", self.device.type == "cuda")

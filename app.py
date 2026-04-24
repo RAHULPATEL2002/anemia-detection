@@ -1107,6 +1107,36 @@ def render_result_screen(scan: Scan, quality: dict[str, Any], persisted: bool):
     )
 
 
+def verify_database_connection() -> bool:
+    """Test that the configured database is reachable and log the result.
+
+    Returns True when the DB accepted the ping, False otherwise.
+    This is called once during app startup so operators can tell from the
+    logs whether Postgres or SQLite is actually being used.
+    """
+    from config import DATABASE_BACKEND, DATABASE_URI
+
+    masked = DATABASE_URI[:50] + "…" if len(DATABASE_URI) > 50 else DATABASE_URI
+    try:
+        result = db.session.execute(text("SELECT 1")).scalar()
+        if result == 1:
+            print(
+                f"[db] ✓ Connected to {DATABASE_BACKEND} database: {masked}",
+                flush=True,
+            )
+            if DATABASE_BACKEND == "sqlite":
+                print(
+                    "[db] ⚠ WARNING: SQLite is active. Patient history will be LOST on "
+                    "Render redeploys unless ANEMIA_RUNTIME_ROOT points to a persistent "
+                    "disk path. Set DATABASE_URL to use Postgres instead.",
+                    flush=True,
+                )
+            return True
+    except Exception as exc:
+        print(f"[db] ✗ Database connection FAILED ({DATABASE_BACKEND}): {exc}", flush=True)
+    return False
+
+
 def create_app() -> Flask:
     """Application factory for local development and production deployment."""
 
@@ -1124,6 +1154,7 @@ def create_app() -> Flask:
         db.create_all()
         configure_sqlite_runtime()
         initialize_search_index()
+        verify_database_connection()
 
     @app.context_processor
     def inject_shell_context() -> dict[str, Any]:

@@ -21,9 +21,13 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY . .
 
+# Make the entrypoint executable
+RUN chmod +x /app/entrypoint.sh
+
 EXPOSE 5000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=3)" || exit 1
 
-CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT:-5000} --workers ${ANEMIA_GUNICORN_WORKERS:-1} --timeout ${ANEMIA_GUNICORN_TIMEOUT:-180} app:app"]
+# Use entrypoint.sh so DB migrations always run before gunicorn starts
+CMD ["/app/entrypoint.sh"]

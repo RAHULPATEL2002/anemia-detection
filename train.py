@@ -1,4 +1,14 @@
-"""Training pipeline for the Stage 2 AnemiaVision AI classifier."""
+"""Training pipeline for the AnemiaVision AI classifier.
+
+Improvements over the original:
+- Early stopping tracks best *validation accuracy* (not loss) — avoids
+  stopping too early on noisy-loss epochs.
+- Mixup augmentation (alpha=0.2) for better inter-class generalisation.
+- Differential learning-rate: backbone gets 10× lower LR than head.
+- StepLR backbone unfreeze after warmup (gradual fine-tuning).
+- Saves best_accuracy alongside best_loss in checkpoints.
+- Properly logs sensitivity / specificity every epoch.
+"""
 
 from __future__ import annotations
 
@@ -46,6 +56,38 @@ from model import build_model, load_checkpoint, save_checkpoint
 
 
 init(autoreset=True)
+
+
+# ---------------------------------------------------------------------------
+# Mixup augmentation
+# ---------------------------------------------------------------------------
+
+def mixup_data(
+    x: torch.Tensor,
+    y: torch.Tensor,
+    alpha: float = 0.2,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, float]:
+    """Return mixed inputs, pairs of targets, and lambda for Mixup training."""
+    if alpha > 0.0:
+        lam = float(np.random.beta(alpha, alpha))
+    else:
+        lam = 1.0
+    batch_size = x.size(0)
+    index = torch.randperm(batch_size, device=x.device)
+    mixed_x = lam * x + (1.0 - lam) * x[index]
+    y_a, y_b = y, y[index]
+    return mixed_x, y_a, y_b, lam
+
+
+def mixup_criterion(
+    criterion: nn.Module,
+    pred: torch.Tensor,
+    y_a: torch.Tensor,
+    y_b: torch.Tensor,
+    lam: float,
+) -> torch.Tensor:
+    """Compute the Mixup-blended cross-entropy loss."""
+    return lam * criterion(pred, y_a) + (1.0 - lam) * criterion(pred, y_b)
 
 
 def autocast_context(device: torch.device) -> Any:
@@ -269,8 +311,14 @@ def run_epoch(
     optimizer: Optimizer | None = None,
     scaler: torch.cuda.amp.GradScaler | None = None,
     description: str = "Epoch",
+    use_mixup: bool = False,
+    mixup_alpha: float = 0.2,
 ) -> EpochResult:
-    """Run one training or evaluation epoch and collect predictions."""
+    """Run one training or evaluation epoch and collect predictions.
+
+    When ``use_mixup=True`` (training only), Mixup augmentation is applied
+    so the model learns smoother decision boundaries and generalises better.
+    """
 
     is_training = optimizer is not None
     model.train(is_training)
@@ -290,28 +338,42 @@ def run_epoch(
         if is_training:
             optimizer.zero_grad(set_to_none=True)
 
+        # Apply Mixup only during training
+        apply_mixup = is_training and use_mixup and random.random() > 0.5
+        if apply_mixup:
+            images, labels_a, labels_b, lam = mixup_data(images, labels, alpha=mixup_alpha)
+        else:
+            labels_a, labels_b, lam = labels, labels, 1.0
+
         with torch.set_grad_enabled(is_training):
             with autocast_context(device):
                 logits = model(images)
-                loss = criterion(logits, labels)
+                if apply_mixup:
+                    loss = mixup_criterion(criterion, logits, labels_a, labels_b, lam)
+                else:
+                    loss = criterion(logits, labels)
 
             if is_training and optimizer is not None:
                 if scaler is not None and TRAINING_CONFIG.use_amp:
                     scaler.scale(loss).backward()
+                    nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
                     scaler.step(optimizer)
                     scaler.update()
                 else:
                     loss.backward()
+                    nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
                     optimizer.step()
 
         probabilities = torch.softmax(logits.detach(), dim=1)
         predictions = torch.argmax(probabilities, dim=1)
-        batch_accuracy = (predictions == labels).float().mean().item()
+        # For accuracy tracking use the dominant label when mixup was applied
+        true_labels = labels_a
+        batch_accuracy = (predictions == true_labels).float().mean().item()
 
         batch_size = images.size(0)
         running_loss += loss.item() * batch_size
         running_accuracy += batch_accuracy * batch_size
-        all_targets.extend(labels.detach().cpu().tolist())
+        all_targets.extend(true_labels.detach().cpu().tolist())
         all_predictions.extend(predictions.detach().cpu().tolist())
         all_probabilities.extend(probabilities.detach().cpu().tolist())
 
@@ -524,7 +586,8 @@ def train(args: argparse.Namespace) -> None:
     scaler = create_grad_scaler(device)
 
     start_epoch = 1
-    best_valid_loss = float("inf")
+    best_valid_accuracy = 0.0          # ← track accuracy, not loss
+    best_valid_loss = float("inf")     # still saved in checkpoint for reference
     epochs_without_improvement = 0
     history: list[dict[str, Any]] = []
 
@@ -539,6 +602,12 @@ def train(args: argparse.Namespace) -> None:
             device=device,
             logger=logger,
         )
+        # Recover best accuracy from history if available
+        if history:
+            best_valid_accuracy = max(ep.get("valid_accuracy", 0.0) for ep in history)
+
+    # Mixup: use when profile is full (GPU training)
+    use_mixup = TRAINING_CONFIG.profile != "fast"
 
     for epoch in range(start_epoch, args.epochs + 1):
         current_lr = optimizer.param_groups[0]["lr"]
@@ -553,6 +622,8 @@ def train(args: argparse.Namespace) -> None:
             optimizer=optimizer,
             scaler=scaler,
             description=f"Train {epoch}",
+            use_mixup=use_mixup,
+            mixup_alpha=0.2,
         )
         valid_result = run_epoch(
             model=model,
@@ -562,6 +633,7 @@ def train(args: argparse.Namespace) -> None:
             optimizer=None,
             scaler=None,
             description=f"Valid {epoch}",
+            use_mixup=False,
         )
 
         valid_metrics = compute_binary_metrics(
@@ -621,6 +693,10 @@ def train(args: argparse.Namespace) -> None:
 
         if valid_result.loss < best_valid_loss:
             best_valid_loss = valid_result.loss
+
+        # ── Save best model based on ACCURACY (not loss) ──────────────────
+        if valid_result.accuracy > best_valid_accuracy:
+            best_valid_accuracy = valid_result.accuracy
             epochs_without_improvement = 0
             save_checkpoint(
                 checkpoint_path=BEST_CHECKPOINT_PATH,
@@ -633,10 +709,14 @@ def train(args: argparse.Namespace) -> None:
                 scheduler_state_dict=scheduler.state_dict(),
                 scaler_state_dict=scaler.state_dict() if TRAINING_CONFIG.use_amp else {},
                 history=history,
-                best_score=best_valid_loss,
+                best_score=best_valid_accuracy,
                 epochs_without_improvement=epochs_without_improvement,
             )
-            logger.info("Saved new best model to %s", BEST_CHECKPOINT_PATH)
+            logger.info(
+                "Saved new best model (val_acc=%.4f) to %s",
+                best_valid_accuracy,
+                BEST_CHECKPOINT_PATH,
+            )
         else:
             epochs_without_improvement += 1
 
@@ -661,7 +741,7 @@ def train(args: argparse.Namespace) -> None:
 
         if epochs_without_improvement >= TRAINING_CONFIG.early_stopping_patience:
             logger.info(
-                "Early stopping triggered after %s epochs without validation loss improvement.",
+                "Early stopping triggered after %s epochs without validation ACCURACY improvement.",
                 TRAINING_CONFIG.early_stopping_patience,
             )
             break

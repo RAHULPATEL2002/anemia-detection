@@ -65,16 +65,19 @@ def build_model(
 
     classifier_in_features = spec["classifier_features"]
     model.avgpool = nn.AdaptiveAvgPool2d(output_size=1)
+    # Stronger head: two hidden layers with BatchNorm + GELU + high dropout
+    # to prevent over-fitting on small eye-image datasets.
     model.classifier = nn.Sequential(
         nn.Flatten(),
         nn.Linear(classifier_in_features, 512),
         nn.BatchNorm1d(512),
-        nn.ReLU(inplace=True),
-        nn.Dropout(p=0.4),
-        nn.Linear(512, 128),
-        nn.ReLU(inplace=True),
-        nn.Dropout(p=0.3),
-        nn.Linear(128, num_classes),
+        nn.GELU(),
+        nn.Dropout(p=0.45),
+        nn.Linear(512, 256),
+        nn.BatchNorm1d(256),
+        nn.GELU(),
+        nn.Dropout(p=0.35),
+        nn.Linear(256, num_classes),
     )
 
     return model

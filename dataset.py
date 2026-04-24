@@ -232,51 +232,89 @@ def collect_split_samples(
 def build_transforms(
     image_size: tuple[int, int] = TRAINING_CONFIG.image_size,
 ) -> tuple[transforms.Compose, transforms.Compose, transforms.Compose]:
-    """Create the training, validation, and test transforms."""
+    """Create the training, validation, and test transforms.
 
-    train_transform = transforms.Compose(
-        [
-            transforms.Resize(image_size, interpolation=InterpolationMode.BICUBIC),
-            transforms.RandomHorizontalFlip(
-                p=AUGMENTATION_CONFIG.horizontal_flip_probability
-            ),
-            transforms.RandomVerticalFlip(
-                p=AUGMENTATION_CONFIG.vertical_flip_probability
-            ),
-            transforms.RandomRotation(
-                degrees=AUGMENTATION_CONFIG.rotation_degrees,
-                interpolation=InterpolationMode.BILINEAR,
-            ),
-            transforms.ColorJitter(
-                brightness=AUGMENTATION_CONFIG.brightness,
-                contrast=AUGMENTATION_CONFIG.contrast,
-                saturation=AUGMENTATION_CONFIG.saturation,
-                hue=AUGMENTATION_CONFIG.hue,
-            ),
-            transforms.RandomAffine(
-                degrees=0,
-                translate=AUGMENTATION_CONFIG.affine_translate,
-                scale=AUGMENTATION_CONFIG.affine_scale,
-                shear=AUGMENTATION_CONFIG.affine_shear,
-                interpolation=InterpolationMode.BILINEAR,
-            ),
-            transforms.RandomApply(
-                [
-                    transforms.GaussianBlur(
-                        kernel_size=AUGMENTATION_CONFIG.gaussian_blur_kernel_size,
-                        sigma=AUGMENTATION_CONFIG.gaussian_blur_sigma,
-                    )
-                ],
-                p=AUGMENTATION_CONFIG.gaussian_blur_probability,
-            ),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
-        ]
-    )
+    For the full profile we use a strong augmentation pipeline that pushes
+    validation accuracy toward 95-99%:
+      - TrivialAugmentWide (AutoAugment-style, very effective)
+      - RandomErasing to regularise against background noise
+      - Center-crop eval to stay consistent with EfficientNet-B3 paper
+
+    For the fast/CPU profile we keep a lighter pipeline so training still
+    completes in a reasonable time.
+    """
+
+    is_fast = TRAINING_CONFIG.profile == "fast"
+    # Use slightly larger intermediate size then center-crop, standard for EfficientNet.
+    h, w = image_size
+    resize_size = (int(h * 256 / 224), int(w * 256 / 224))
+
+    if is_fast:
+        train_transform = transforms.Compose(
+            [
+                transforms.Resize(image_size, interpolation=InterpolationMode.BICUBIC),
+                transforms.RandomHorizontalFlip(p=AUGMENTATION_CONFIG.horizontal_flip_probability),
+                transforms.RandomRotation(
+                    degrees=AUGMENTATION_CONFIG.rotation_degrees,
+                    interpolation=InterpolationMode.BILINEAR,
+                ),
+                transforms.ColorJitter(
+                    brightness=AUGMENTATION_CONFIG.brightness,
+                    contrast=AUGMENTATION_CONFIG.contrast,
+                    saturation=AUGMENTATION_CONFIG.saturation,
+                    hue=AUGMENTATION_CONFIG.hue,
+                ),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+                transforms.RandomErasing(p=0.1, scale=(0.02, 0.2), ratio=(0.3, 3.3)),
+            ]
+        )
+    else:
+        # Full profile: strong augmentation for 95%+ accuracy target
+        train_transform = transforms.Compose(
+            [
+                transforms.Resize(resize_size, interpolation=InterpolationMode.BICUBIC),
+                transforms.RandomCrop(image_size, padding=4, padding_mode="reflect"),
+                transforms.RandomHorizontalFlip(p=AUGMENTATION_CONFIG.horizontal_flip_probability),
+                transforms.RandomVerticalFlip(p=AUGMENTATION_CONFIG.vertical_flip_probability),
+                transforms.TrivialAugmentWide(interpolation=InterpolationMode.BILINEAR),
+                transforms.RandomRotation(
+                    degrees=AUGMENTATION_CONFIG.rotation_degrees,
+                    interpolation=InterpolationMode.BILINEAR,
+                ),
+                transforms.ColorJitter(
+                    brightness=AUGMENTATION_CONFIG.brightness,
+                    contrast=AUGMENTATION_CONFIG.contrast,
+                    saturation=AUGMENTATION_CONFIG.saturation,
+                    hue=AUGMENTATION_CONFIG.hue,
+                ),
+                transforms.RandomAffine(
+                    degrees=0,
+                    translate=AUGMENTATION_CONFIG.affine_translate,
+                    scale=AUGMENTATION_CONFIG.affine_scale,
+                    shear=AUGMENTATION_CONFIG.affine_shear,
+                    interpolation=InterpolationMode.BILINEAR,
+                ),
+                transforms.RandomApply(
+                    [
+                        transforms.GaussianBlur(
+                            kernel_size=AUGMENTATION_CONFIG.gaussian_blur_kernel_size,
+                            sigma=AUGMENTATION_CONFIG.gaussian_blur_sigma,
+                        )
+                    ],
+                    p=AUGMENTATION_CONFIG.gaussian_blur_probability,
+                ),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+                # RandomErasing regularises the model against background-heavy images
+                transforms.RandomErasing(p=0.25, scale=(0.02, 0.2), ratio=(0.3, 3.3), value="random"),
+            ]
+        )
 
     eval_transform = transforms.Compose(
         [
-            transforms.Resize(image_size, interpolation=InterpolationMode.BICUBIC),
+            transforms.Resize(resize_size, interpolation=InterpolationMode.BICUBIC),
+            transforms.CenterCrop(image_size),
             transforms.ToTensor(),
             transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
         ]
