@@ -4,29 +4,52 @@
 {% block page_title %}New Patient Scan{% endblock %}
 
 {% block content %}
-<section class="surface-card fade-in-up">
-    <div class="section-header">
-        <div>
+<section class="surface-card fade-in-up scan-workspace-card">
+    <div class="scan-page-head">
+        <div class="scan-page-head__copy">
             <span class="eyebrow">Acquisition workflow</span>
             <h3>Capture a new screening image</h3>
+            <p class="text-secondary small mb-0 mt-2">
+                Upload conjunctiva or fingernail photos, or use the camera when HTTPS is available. Patient details stay on this server until you export.
+            </p>
         </div>
-        {% if predictor_loaded %}
-            <span class="badge text-bg-success" id="modelStatusBadge">Model Ready</span>
-        {% elif checkpoint_available %}
-            <span class="badge text-bg-warning" id="modelStatusBadge">Model Loading</span>
-        {% else %}
-            <span class="badge text-bg-warning" id="modelStatusBadge">Model Not Ready</span>
-        {% endif %}
+        <div
+            class="model-readiness-card {% if predictor_loaded %}model-readiness-card--ready{% elif checkpoint_available %}model-readiness-card--loading{% else %}model-readiness-card--offline{% endif %}"
+            role="status"
+            aria-live="polite"
+        >
+            <div class="readiness-icon" aria-hidden="true">
+                {% if predictor_loaded %}
+                    <i data-lucide="cpu"></i>
+                {% elif checkpoint_available %}
+                    <i data-lucide="loader-2"></i>
+                {% else %}
+                    <i data-lucide="cloud-off"></i>
+                {% endif %}
+            </div>
+            <div class="readiness-body">
+                <div class="readiness-title">
+                    {% if predictor_loaded %}
+                        <span class="badge text-bg-success" id="modelStatusBadge">Model ready</span>
+                    {% elif checkpoint_available %}
+                        <span class="badge text-bg-warning text-dark" id="modelStatusBadge">Model loading</span>
+                    {% else %}
+                        <span class="badge text-bg-danger" id="modelStatusBadge">Model unavailable</span>
+                    {% endif %}
+                    <span class="text-muted small fw-semibold text-uppercase" style="letter-spacing: 0.06em;">Inference engine</span>
+                </div>
+                <p id="modelStatusHint">
+                    {% if predictor_loaded %}
+                        The screening model is loaded in memory and ready to analyze new images.
+                    {% elif checkpoint_available %}
+                        Weights are on disk; the server is still loading them into GPU/RAM. Keep this tab open until the badge shows Model ready.
+                    {% else %}
+                        No trained checkpoint was found for this deployment. Add weights under <code>models/</code> or set <code>ANEMIA_BEST_CHECKPOINT</code>.
+                    {% endif %}
+                </p>
+            </div>
+        </div>
     </div>
-    <p class="small text-secondary mt-2 mb-0" id="modelStatusHint">
-        {% if predictor_loaded %}
-            The AI model is loaded on this server and ready for screening.
-        {% elif checkpoint_available %}
-            The AI model file is present, but this server is still loading it. Keep this page open until the badge changes to Model Ready.
-        {% else %}
-            A trained checkpoint is not available on this deployment yet.
-        {% endif %}
-    </p>
 
     <form id="scanForm" method="post" action="{{ url_for('predict_route') }}" enctype="multipart/form-data" class="scan-layout">
         <div class="scan-capture-panel">
@@ -94,14 +117,18 @@
         </div>
 
         <div class="scan-form-panel">
+            <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+                <h4 class="h6 mb-0 fw-bold text-uppercase" style="letter-spacing: 0.08em;">Patient &amp; visit</h4>
+                <span class="text-muted small">* Required</span>
+            </div>
             <div class="row g-3">
                 <div class="col-12">
                     <label class="form-label" for="patientName">Name*</label>
-                    <input class="form-control" id="patientName" name="patient_name" required>
+                    <input class="form-control" id="patientName" name="patient_name" required autocomplete="name">
                 </div>
                 <div class="col-md-6">
                     <label class="form-label" for="patientAge">Age*</label>
-                    <input class="form-control" id="patientAge" name="age" type="number" min="0" max="120" required>
+                    <input class="form-control" id="patientAge" name="age" type="number" min="0" max="120" required inputmode="numeric">
                 </div>
                 <div class="col-md-6">
                     <label class="form-label" for="gender">Gender*</label>
@@ -114,7 +141,7 @@
                 </div>
                 <div class="col-12">
                     <label class="form-label" for="phone">Phone (optional)</label>
-                    <input class="form-control" id="phone" name="phone" type="tel">
+                    <input class="form-control" id="phone" name="phone" type="tel" autocomplete="tel">
                 </div>
                 <div class="col-12">
                     <label class="form-label" for="imageType">Image Type</label>
@@ -126,7 +153,7 @@
                 </div>
                 <div class="col-12">
                     <label class="form-label" for="notes">Notes (optional)</label>
-                    <textarea class="form-control" id="notes" name="notes" rows="4"></textarea>
+                    <textarea class="form-control" id="notes" name="notes" rows="4" placeholder="Clinician notes, ward, or referral context"></textarea>
                 </div>
                 <div class="col-12">
                     <button class="btn btn-primary btn-lg w-100" id="submitScanButton" {% if not predictor_loaded %}disabled{% endif %}>

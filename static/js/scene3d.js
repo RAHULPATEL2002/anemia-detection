@@ -1,5 +1,7 @@
 /**
  * Rich ambient 3D scene behind AnemiaVision (Three.js).
+ * SaaS / metaverse–style depth: flowing ribbons, shader sky, instanced helix,
+ * orbital line halos. Time drives motion (3D + time as the “fourth” dimension).
  * Respects prefers-reduced-motion and missing WebGL.
  */
 (function initAnemiaVisionScene3d() {
@@ -14,6 +16,11 @@
         return;
     }
 
+    function hexToVec3(hex) {
+        const c = new THREE.Color(hex);
+        return new THREE.Vector3(c.r, c.g, c.b);
+    }
+
     const renderer = new THREE.WebGLRenderer({
         canvas,
         antialias: true,
@@ -24,13 +31,21 @@
     renderer.setClearColor(0x000000, 0);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 160);
-    camera.position.set(0, 0.35, 17.5);
+    const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 200);
+    camera.position.set(0, 0.4, 18.2);
 
     const mainGroup = new THREE.Group();
     const orbitGroup = new THREE.Group();
+    const ribbonGroup = new THREE.Group();
+    const helixGroup = new THREE.Group();
+    const lineHaloGroup = new THREE.Group();
+    const waveGridGroup = new THREE.Group();
     scene.add(mainGroup);
     scene.add(orbitGroup);
+    mainGroup.add(ribbonGroup);
+    mainGroup.add(helixGroup);
+    mainGroup.add(lineHaloGroup);
+    mainGroup.add(waveGridGroup);
 
     function themePalette() {
         const dark = document.documentElement.getAttribute("data-theme") === "dark";
@@ -42,7 +57,8 @@
                 fill: 0xf472b6,
                 wire: 0x38bdf8,
                 particle: 0x7dd3fc,
-                accent: 0xa78bfa
+                accent: 0xa78bfa,
+                deep: 0x312e81
             };
         }
         return {
@@ -52,41 +68,45 @@
             fill: 0xe11d48,
             wire: 0x0ea5e9,
             particle: 0x2dd4bf,
-            accent: 0x6366f1
+            accent: 0x6366f1,
+            deep: 0x1e3a5f
         };
     }
 
     let palette = themePalette();
-    scene.fog = new THREE.FogExp2(palette.fog, 0.022);
+    scene.fog = new THREE.FogExp2(palette.fog, 0.019);
 
     function darkModeStrength() {
-        return document.documentElement.getAttribute("data-theme") === "dark" ? 0.32 : 0.52;
+        return document.documentElement.getAttribute("data-theme") === "dark" ? 0.34 : 0.54;
     }
 
     const ambient = new THREE.AmbientLight(palette.ambient, darkModeStrength());
     scene.add(ambient);
 
-    const hemi = new THREE.HemisphereLight(palette.key, palette.fill, 0.35);
+    const hemi = new THREE.HemisphereLight(palette.key, palette.fill, 0.38);
     scene.add(hemi);
 
-    const keyLight = new THREE.DirectionalLight(palette.key, 1.15);
+    const keyLight = new THREE.DirectionalLight(palette.key, 1.22);
     keyLight.position.set(10, 14, 14);
     scene.add(keyLight);
 
-    const rimLight = new THREE.DirectionalLight(palette.fill, 0.62);
+    const rimLight = new THREE.DirectionalLight(palette.fill, 0.68);
     rimLight.position.set(-12, -6, -8);
     scene.add(rimLight);
 
-    const accentLight = new THREE.PointLight(palette.accent, 0.9, 40, 2);
+    const accentLight = new THREE.PointLight(palette.accent, 1.05, 48, 2);
     accentLight.position.set(0, 3, 6);
     scene.add(accentLight);
 
-    const fillPoint = new THREE.PointLight(palette.fill, 0.55, 28, 2);
+    const fillPoint = new THREE.PointLight(palette.fill, 0.62, 32, 2);
     fillPoint.position.set(-6, -2, 4);
     scene.add(fillPoint);
 
+    const coolPoint = new THREE.PointLight(palette.wire, 0.45, 36, 2);
+    coolPoint.position.set(8, -4, -2);
+    scene.add(coolPoint);
+
     const meshes = [];
-    const extras = [];
 
     function addShape(geometry, colorHex, emissiveHex, wireframe, opacity = 1, scale = 1) {
         const Mat = wireframe ? THREE.MeshStandardMaterial : THREE.MeshPhysicalMaterial;
@@ -102,8 +122,8 @@
             ...(wireframe
                 ? {}
                 : {
-                      clearcoat: 0.48,
-                      clearcoatRoughness: 0.22
+                      clearcoat: 0.52,
+                      clearcoatRoughness: 0.2
                   })
         });
         const mesh = new THREE.Mesh(geometry, mat);
@@ -151,15 +171,20 @@
     c1.position.set(0.5, -2.8, -6);
     c1.rotation.z = 0.4;
 
+    const dodec = new THREE.DodecahedronGeometry(0.92, 0);
+    const d1 = addShape(dodec, 0xffffff, palette.accent, false, 0.7, 1.08);
+    d1.position.set(-2.2, 3.1, -5.8);
+    d1.userData.emissiveKey = "accent";
+
     const skyShell = new THREE.Mesh(
         new THREE.IcosahedronGeometry(8.2, 2),
         new THREE.MeshStandardMaterial({
             color: 0xffffff,
             emissive: palette.wire,
-            emissiveIntensity: 0.2,
+            emissiveIntensity: 0.22,
             wireframe: true,
             transparent: true,
-            opacity: 0.12,
+            opacity: 0.11,
             metalness: 0.2,
             roughness: 0.85
         })
@@ -172,9 +197,9 @@
         new THREE.MeshStandardMaterial({
             color: 0xffffff,
             emissive: palette.key,
-            emissiveIntensity: 0.45,
+            emissiveIntensity: 0.48,
             transparent: true,
-            opacity: 0.4,
+            opacity: 0.42,
             metalness: 0.88,
             roughness: 0.16,
             side: THREE.DoubleSide
@@ -183,6 +208,24 @@
     megaRing.rotation.x = Math.PI / 2.15;
     megaRing.position.set(0, -1.2, -5.5);
     mainGroup.add(megaRing);
+
+    const megaRingB = new THREE.Mesh(
+        new THREE.TorusGeometry(8.4, 0.04, 12, 200),
+        new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            emissive: palette.fill,
+            emissiveIntensity: 0.32,
+            transparent: true,
+            opacity: 0.22,
+            metalness: 0.75,
+            roughness: 0.2,
+            side: THREE.DoubleSide
+        })
+    );
+    megaRingB.rotation.x = Math.PI / 2.4;
+    megaRingB.rotation.z = 0.35;
+    megaRingB.position.set(0.6, 0.4, -7);
+    mainGroup.add(megaRingB);
 
     const innerOrbit = new THREE.Group();
     mainGroup.add(innerOrbit);
@@ -214,6 +257,209 @@
         orbitGroup.add(m);
     }
 
+    const skyUniforms = {
+        uTime: { value: 0 },
+        uColorA: { value: hexToVec3(palette.key) },
+        uColorB: { value: hexToVec3(palette.fill) },
+        uColorC: { value: hexToVec3(palette.accent) }
+    };
+
+    const skyVertex = `
+        varying vec3 vPos;
+        void main() {
+            vPos = position;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `;
+
+    const skyFragment = `
+        uniform float uTime;
+        uniform vec3 uColorA;
+        uniform vec3 uColorB;
+        uniform vec3 uColorC;
+        varying vec3 vPos;
+        void main() {
+            vec3 dir = normalize(vPos);
+            float lat = dir.y;
+            float bands = sin(lat * 9.0 + uTime * 0.35) * 0.5 + 0.5;
+            float ribs = sin(dir.x * 14.0 + uTime * 0.28) * sin(dir.z * 11.0 - uTime * 0.22);
+            float pulse = sin(uTime * 0.45 + length(dir.xz) * 6.0) * 0.5 + 0.5;
+            vec3 base = mix(uColorA, uColorB, bands * 0.65 + ribs * 0.15);
+            base = mix(base, uColorC, pulse * 0.18);
+            float alpha = 0.04 + bands * 0.035 + ribs * 0.02;
+            gl_FragColor = vec4(base, alpha);
+        }
+    `;
+
+    const skyDome = new THREE.Mesh(
+        new THREE.SphereGeometry(52, 48, 32),
+        new THREE.ShaderMaterial({
+            uniforms: skyUniforms,
+            vertexShader: skyVertex,
+            fragmentShader: skyFragment,
+            side: THREE.BackSide,
+            depthWrite: false,
+            transparent: true,
+            blending: THREE.AdditiveBlending
+        })
+    );
+    skyDome.position.set(0, 0, -6);
+    skyDome.renderOrder = -5;
+    scene.add(skyDome);
+
+    const ribbonMaterials = [];
+
+    function buildRibbonTube(seed, radius, tubularSeg) {
+        const pts = [];
+        const steps = 52;
+        for (let i = 0; i <= steps; i += 1) {
+            const u = i / steps;
+            const ang = u * Math.PI * 2 * 2.55 + seed * 1.7;
+            const wobble = Math.sin(u * 11 + seed * 2.1) * 0.85;
+            pts.push(
+                new THREE.Vector3(
+                    Math.cos(ang) * (5.4 + wobble * 0.25) + Math.sin(seed) * 0.4,
+                    Math.sin(u * Math.PI * 2.4 + seed) * 3.2,
+                    Math.sin(ang * 1.08) * (3.8 + u * 1.4) - 4.2 + wobble * 0.15
+                )
+            );
+        }
+        const curve = new THREE.CatmullRomCurve3(pts);
+        const tubeGeo = new THREE.TubeGeometry(curve, tubularSeg, radius, 10, false);
+        const mat = new THREE.MeshPhysicalMaterial({
+            color: 0xffffff,
+            emissive: new THREE.Color(palette.key),
+            emissiveIntensity: 0.42,
+            metalness: 0.55,
+            roughness: 0.18,
+            transparent: true,
+            opacity: 0.58,
+            clearcoat: 1,
+            clearcoatRoughness: 0.12,
+            side: THREE.DoubleSide
+        });
+        mat.userData.emissiveKey = seed % 2 === 0 ? "key" : "fill";
+        ribbonMaterials.push(mat);
+        const mesh = new THREE.Mesh(tubeGeo, mat);
+        mesh.userData.seed = seed;
+        mesh.userData.curve = curve;
+        mesh.userData.tubularSeg = tubularSeg;
+        mesh.userData.radius = radius;
+        ribbonGroup.add(mesh);
+        return mesh;
+    }
+
+    const ribbons = [
+        buildRibbonTube(0.2, 0.065, 140),
+        buildRibbonTube(2.8, 0.048, 160),
+        buildRibbonTube(5.1, 0.055, 120),
+        buildRibbonTube(3.4, 0.038, 180)
+    ];
+
+    const sparkCount = 200;
+    const sparkGeo = new THREE.IcosahedronGeometry(0.13, 0);
+    const sparkMat = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        metalness: 0.35,
+        roughness: 0.25,
+        transparent: true,
+        opacity: 0.88,
+        emissive: new THREE.Color(palette.key),
+        emissiveIntensity: 0.62
+    });
+    const sparks = new THREE.InstancedMesh(sparkGeo, sparkMat, sparkCount);
+    const dummy = new THREE.Object3D();
+    for (let i = 0; i < sparkCount; i += 1) {
+        const t = (i / sparkCount) * Math.PI * 2 * 7;
+        const r = 4.8 + Math.sin(i * 0.31) * 1.4;
+        const y = (i / sparkCount) * 9 - 4.2;
+        dummy.position.set(Math.cos(t) * r, y, Math.sin(t) * r * 0.55 - 3.2);
+        dummy.rotation.set(i * 0.15, i * 0.22, i * 0.09);
+        dummy.scale.setScalar(0.35 + (i % 7) * 0.11);
+        dummy.updateMatrix();
+        sparks.setMatrixAt(i, dummy.matrix);
+    }
+    sparks.instanceMatrix.needsUpdate = true;
+    helixGroup.add(sparks);
+
+    const lineHalos = [];
+
+    function addLineHalo(rx, ry, z, colorHex, opacity, tiltX, tiltZ) {
+        const segs = 96;
+        const positions = new Float32Array((segs + 1) * 3);
+        for (let i = 0; i <= segs; i += 1) {
+            const a = (i / segs) * Math.PI * 2;
+            let x = Math.cos(a) * rx;
+            let y = Math.sin(a) * ry;
+            let zz = z;
+            const cosX = Math.cos(tiltX);
+            const sinX = Math.sin(tiltX);
+            const ny = y * cosX - zz * sinX;
+            const nz = y * sinX + zz * cosX;
+            y = ny;
+            zz = nz;
+            const cosZ = Math.cos(tiltZ);
+            const sinZ = Math.sin(tiltZ);
+            const nx = x * cosZ - y * sinZ;
+            const ny2 = x * sinZ + y * cosZ;
+            x = nx;
+            y = ny2;
+            positions[i * 3] = x;
+            positions[i * 3 + 1] = y;
+            positions[i * 3 + 2] = zz;
+        }
+        const lg = new THREE.BufferGeometry();
+        lg.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+        const line = new THREE.LineLoop(
+            lg,
+            new THREE.LineBasicMaterial({
+                color: colorHex,
+                transparent: true,
+                opacity,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            })
+        );
+        lineHaloGroup.add(line);
+        lineHalos.push(line);
+        return line;
+    }
+
+    addLineHalo(9.2, 5.8, -5.5, palette.wire, 0.14, 0.55, 0.2);
+    addLineHalo(7.4, 7.4, -4.2, palette.key, 0.11, -0.35, 0.45);
+    addLineHalo(11, 4.2, -6.8, palette.accent, 0.09, 0.22, -0.3);
+    addLineHalo(5.5, 5.5, -2.8, palette.fill, 0.12, 0.65, 0.55);
+
+    const gridCols = 11;
+    const gridRows = 7;
+    const tileW = 1.35;
+    const tileH = 1.1;
+    const tileGeo = new THREE.PlaneGeometry(tileW * 0.92, tileH * 0.92);
+    const gridTileMaterials = [];
+    for (let gx = 0; gx < gridCols; gx += 1) {
+        for (let gy = 0; gy < gridRows; gy += 1) {
+            const tileMat = new THREE.MeshPhysicalMaterial({
+                color: 0xffffff,
+                emissive: new THREE.Color(palette.wire),
+                emissiveIntensity: 0.08,
+                metalness: 0.72,
+                roughness: 0.35,
+                transparent: true,
+                opacity: 0.12,
+                side: THREE.DoubleSide
+            });
+            gridTileMaterials.push(tileMat);
+            const tile = new THREE.Mesh(tileGeo, tileMat);
+            const ox = (gx - gridCols / 2) * tileW;
+            const oy = (gy - gridRows / 2) * tileH;
+            tile.position.set(ox, oy, -14);
+            tile.rotation.x = -Math.PI / 2.35;
+            tile.userData.phase = gx * 0.37 + gy * 0.51;
+            waveGridGroup.add(tile);
+        }
+    }
+    waveGridGroup.position.y = -2.2;
+
     function particleLayer(count, size, opacity, spread) {
         const positions = new Float32Array(count * 3);
         for (let i = 0; i < count; i += 1) {
@@ -240,9 +486,10 @@
         return { points: pts, material: mat };
     }
 
-    const layerA = particleLayer(640, 0.08, 0.52, [9, 22]);
-    const layerB = particleLayer(360, 0.048, 0.36, [14, 30]);
-    const layerC = particleLayer(220, 0.028, 0.28, [3, 14]);
+    const layerA = particleLayer(820, 0.075, 0.5, [10, 26]);
+    const layerB = particleLayer(420, 0.046, 0.34, [15, 34]);
+    const layerC = particleLayer(280, 0.026, 0.26, [4, 16]);
+    const layerD = particleLayer(160, 0.12, 0.22, [2, 9]);
 
     function applyPalette() {
         palette = themePalette();
@@ -255,8 +502,25 @@
         rimLight.color.setHex(palette.fill);
         accentLight.color.setHex(palette.accent);
         fillPoint.color.setHex(palette.fill);
+        coolPoint.color.setHex(palette.wire);
         skyShell.material.emissive.setHex(palette.wire);
         megaRing.material.emissive.setHex(palette.key);
+        megaRingB.material.emissive.setHex(palette.fill);
+        skyUniforms.uColorA.value.copy(hexToVec3(palette.key));
+        skyUniforms.uColorB.value.copy(hexToVec3(palette.fill));
+        skyUniforms.uColorC.value.copy(hexToVec3(palette.accent));
+        sparkMat.emissive.setHex(palette.key);
+        gridTileMaterials.forEach((m) => {
+            m.emissive.setHex(palette.wire);
+        });
+        ribbonMaterials.forEach((mat, idx) => {
+            const k = mat.userData.emissiveKey || (idx % 2 === 0 ? "key" : "fill");
+            mat.emissive.setHex(palette[k] || palette.key);
+        });
+        lineHalos[0].material.color.setHex(palette.wire);
+        lineHalos[1].material.color.setHex(palette.key);
+        lineHalos[2].material.color.setHex(palette.accent);
+        lineHalos[3].material.color.setHex(palette.fill);
         meshes.forEach((m) => {
             if (m.userData.emissiveKey) {
                 const key = m.userData.emissiveKey;
@@ -275,6 +539,7 @@
         layerA.material.color.setHex(palette.particle);
         layerB.material.color.setHex(palette.wire);
         layerC.material.color.setHex(palette.accent);
+        layerD.material.color.setHex(palette.fill);
     }
 
     orbitGroup.children.forEach((child) => {
@@ -307,49 +572,82 @@
         }
         frame = requestAnimationFrame(animate);
         const t = clock.getElapsedTime();
+        skyUniforms.uTime.value = t;
 
-        mainGroup.rotation.y = t * 0.085;
-        mainGroup.rotation.x = Math.sin(t * 0.11) * 0.07;
-        orbitGroup.rotation.y = -t * 0.12;
-        orbitGroup.rotation.x = Math.cos(t * 0.09) * 0.04;
+        mainGroup.rotation.y = t * 0.078;
+        mainGroup.rotation.x = Math.sin(t * 0.1) * 0.065;
+        orbitGroup.rotation.y = -t * 0.11;
+        orbitGroup.rotation.x = Math.cos(t * 0.085) * 0.038;
 
-        accentLight.position.x = Math.sin(t * 0.5) * 5;
-        accentLight.position.y = 2.5 + Math.cos(t * 0.4) * 1.2;
-        accentLight.intensity = 0.75 + Math.sin(t * 1.8) * 0.2;
+        ribbonGroup.rotation.y = t * 0.06;
+        ribbonGroup.rotation.z = Math.sin(t * 0.07) * 0.04;
+        ribbonGroup.position.y = Math.sin(t * 0.31) * 0.15;
 
-        fillPoint.position.x = Math.cos(t * 0.35) * 5.5;
-        fillPoint.position.z = 3 + Math.sin(t * 0.28) * 1.2;
-        fillPoint.intensity = 0.48 + Math.sin(t * 2.1) * 0.18;
+        helixGroup.rotation.y = t * 0.19;
+        helixGroup.position.x = Math.sin(t * 0.18) * 0.25;
 
-        innerOrbit.rotation.y = t * 0.14;
-        innerOrbit.rotation.z = Math.sin(t * 0.11) * 0.06;
-        megaRing.rotation.z = t * 0.052;
-        skyShell.rotation.y = t * 0.024;
-        skyShell.rotation.x = t * 0.016;
+        lineHaloGroup.rotation.y = t * 0.04;
+        lineHaloGroup.rotation.x = Math.sin(t * 0.12) * 0.08;
+        lineHalos.forEach((line, idx) => {
+            line.rotation.z = t * (0.018 + idx * 0.004);
+            line.material.opacity = 0.08 + Math.sin(t * 0.5 + idx) * 0.035;
+        });
 
-        scene.fog.density = 0.022 + Math.sin(t * 0.22) * 0.005;
+        waveGridGroup.children.forEach((tile) => {
+            const ph = tile.userData.phase || 0;
+            tile.position.z = -14 + Math.sin(t * 0.55 + ph) * 0.35;
+            tile.material.opacity = 0.08 + Math.sin(t * 0.4 + ph * 2) * 0.05;
+        });
+        waveGridGroup.rotation.z = Math.sin(t * 0.08) * 0.04;
 
-        camera.position.x = Math.sin(t * 0.15) * 0.35;
-        camera.position.y = 0.35 + Math.cos(t * 0.12) * 0.12;
-        camera.lookAt(0, 0, -2);
+        accentLight.position.x = Math.sin(t * 0.52) * 6;
+        accentLight.position.y = 2.6 + Math.cos(t * 0.38) * 1.4;
+        accentLight.intensity = 0.85 + Math.sin(t * 1.7) * 0.22;
+
+        fillPoint.position.x = Math.cos(t * 0.33) * 6;
+        fillPoint.position.z = 3 + Math.sin(t * 0.26) * 1.4;
+        fillPoint.intensity = 0.5 + Math.sin(t * 2) * 0.2;
+
+        coolPoint.position.y = Math.sin(t * 0.41) * 3.5;
+        coolPoint.position.z = -2 + Math.cos(t * 0.29) * 2;
+
+        innerOrbit.rotation.y = t * 0.13;
+        innerOrbit.rotation.z = Math.sin(t * 0.1) * 0.055;
+        megaRing.rotation.z = t * 0.048;
+        megaRingB.rotation.z = -t * 0.032;
+        skyShell.rotation.y = t * 0.022;
+        skyShell.rotation.x = t * 0.014;
+
+        scene.fog.density = 0.019 + Math.sin(t * 0.2) * 0.0045;
+
+        camera.position.x = Math.sin(t * 0.14) * 0.42;
+        camera.position.y = 0.4 + Math.cos(t * 0.11) * 0.14;
+        camera.position.z = 18.2 + Math.sin(t * 0.09) * 0.22;
+        camera.rotation.z = Math.sin(t * 0.07) * 0.018;
+        camera.lookAt(0, 0, -2.2);
 
         meshes.forEach((mesh, idx) => {
-            mesh.rotation.x += 0.0024 + idx * 0.00035;
-            mesh.rotation.y += 0.0032 + idx * 0.00028;
+            mesh.rotation.x += 0.0022 + idx * 0.00032;
+            mesh.rotation.y += 0.003 + idx * 0.00026;
             const baseY = mesh.userData.baseY ?? 0;
-            mesh.position.y = baseY + Math.sin(t * 0.65 + idx * 1.2) * 0.38;
+            mesh.position.y = baseY + Math.sin(t * 0.62 + idx * 1.15) * 0.4;
         });
 
         orbitGroup.children.forEach((mesh, idx) => {
             if (!mesh.rotation) return;
-            mesh.rotation.x += 0.004 + idx * 0.0001;
-            mesh.rotation.y += 0.005;
+            mesh.rotation.x += 0.0038 + idx * 0.0001;
+            mesh.rotation.y += 0.0046;
         });
 
-        layerA.points.rotation.y = -t * 0.028;
-        layerB.points.rotation.x = t * 0.018;
-        layerC.points.rotation.z = t * 0.032;
-        layerC.points.rotation.y = t * 0.011;
+        layerA.points.rotation.y = -t * 0.026;
+        layerB.points.rotation.x = t * 0.016;
+        layerC.points.rotation.z = t * 0.03;
+        layerC.points.rotation.y = t * 0.01;
+        layerD.points.rotation.y = t * 0.045;
+        layerD.points.rotation.x = Math.sin(t * 0.2) * 0.08;
+
+        sparks.rotation.y = t * 0.08;
+        sparkMat.emissiveIntensity = 0.5 + Math.sin(t * 2.4) * 0.18;
 
         renderer.render(scene, camera);
     }

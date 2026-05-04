@@ -4,6 +4,28 @@
 {% block page_title %}Clinical Dashboard{% endblock %}
 
 {% block content %}
+<div class="dashboard-quick-bar fade-in-up">
+    <div class="dashboard-quick-bar__meta">
+        <span
+            class="system-ready-pill {% if predictor_loaded %}{% elif checkpoint_available %}is-wait{% else %}is-off{% endif %}"
+        >
+            {% if predictor_loaded %}
+                <i data-lucide="check-circle" style="width:14px;height:14px"></i> Model online
+            {% elif checkpoint_available %}
+                <i data-lucide="loader-2" style="width:14px;height:14px"></i> Model starting
+            {% else %}
+                <i data-lucide="alert-triangle" style="width:14px;height:14px"></i> Weights missing
+            {% endif %}
+        </span>
+        <span>Benchmark: <strong>{{ "%.1f"|format(performance.accuracy_badge) }}%</strong> ({{ performance.source }})</span>
+    </div>
+    <div class="dashboard-quick-bar__actions">
+        <a href="{{ url_for('scan_page') }}" class="btn btn-primary">New patient scan</a>
+        <a href="{{ url_for('history_page') }}" class="btn btn-outline-secondary">Patient history</a>
+        <a href="{{ url_for('analytics_page') }}" class="btn btn-outline-secondary d-none d-md-inline-flex">Analytics</a>
+    </div>
+</div>
+
 <section class="hero-panel fade-in-up av-hero">
     <div class="hero-copy">
         <span class="eyebrow">AI-assisted anemia screening</span>
@@ -27,7 +49,7 @@
     </div>
 </section>
 
-<section class="stats-grid">
+<section class="stats-grid dashboard-stats">
     <article class="stat-card fade-in-up">
         <span>Total Scans</span>
         <strong>{{ home_stats.total_scans }}</strong>

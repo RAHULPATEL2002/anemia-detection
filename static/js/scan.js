@@ -320,13 +320,20 @@ function bindModelReadiness() {
     if (!submitButton || !badge || !hint || !submitButton.disabled) return;
 
     const setReadyState = (isReady) => {
+        const card = badge.closest(".model-readiness-card");
         submitButton.disabled = !isReady;
         badge.textContent = isReady ? "Model Ready" : "Model Loading";
         badge.classList.toggle("text-bg-success", isReady);
         badge.classList.toggle("text-bg-warning", !isReady);
+        badge.classList.toggle("text-dark", !isReady);
         hint.textContent = isReady
             ? "The AI model is loaded on this server and ready for screening."
             : "The AI model is still loading on this server. Keep this page open and the scan button will enable automatically.";
+        if (card) {
+            card.classList.toggle("model-readiness-card--ready", isReady);
+            card.classList.toggle("model-readiness-card--loading", !isReady);
+            card.classList.remove("model-readiness-card--offline");
+        }
     };
 
     let attempts = 0;
@@ -350,6 +357,11 @@ function bindModelReadiness() {
             if (!payload.checkpoint_available) {
                 badge.textContent = "Model Not Ready";
                 hint.textContent = "A trained checkpoint is not available on this deployment yet.";
+                const card = badge.closest(".model-readiness-card");
+                if (card) {
+                    card.classList.remove("model-readiness-card--ready", "model-readiness-card--loading");
+                    card.classList.add("model-readiness-card--offline");
+                }
                 return true;
             }
         } catch (error) {
