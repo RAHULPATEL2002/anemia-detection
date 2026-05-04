@@ -65,6 +65,7 @@ from predict import (
     estimate_hemoglobin_range as prediction_estimate_hemoglobin_range,
     medical_advice_lines,
 )
+from schema_patches import apply_schema_patches
 from storage_utils import extract_storage_filename, resolve_storage_path, storage_reference_for_path
 import torch
 
@@ -129,6 +130,7 @@ class Scan(db.Model):
         default=datetime.utcnow,
         server_default=func.current_timestamp(),
     )
+    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
 
     @property
     def public_scan_id(self) -> str:
@@ -138,6 +140,12 @@ class Scan(db.Model):
             timestamp = (self.created_at or datetime.utcnow()).strftime("%H%M%S")
             return f"AV-TEMP-{timestamp}"
         return f"AV-{self.id:06d}"
+
+    @property
+    def is_archived(self) -> bool:
+        """Whether this scan was soft-deleted (hidden from active history)."""
+
+        return self.deleted_at is not None
 
     @property
     def is_anemic(self) -> bool:
@@ -222,6 +230,12 @@ class Scan(db.Model):
             f"AnemiaVision AI screening for {self.patient_name}: "
             f"{self.prediction} with {self.confidence_percent:.1f}% confidence."
         )
+
+
+def scans_active_query():
+    """Return a query scoped to scans that are not soft-deleted."""
+
+    return Scan.query.filter(Scan.deleted_at.is_(None))
 
 
 def allowed_file(filename: str, mimetype: str | None = None) -> bool:
@@ -366,7 +380,7 @@ def safe_scan_count() -> int:
     global _cached_total_scans_counter
 
     try:
-        _cached_total_scans_counter = Scan.query.count()
+        _cached_total_scans_counter = scans_active_query().count()
     except Exception:
         db.session.rollback()
 
@@ -735,17 +749,17 @@ def create_scan_record(
 def latest_scans(limit: int = 5) -> list[Scan]:
     """Return the most recent scans for dashboard widgets."""
 
-    return Scan.query.order_by(Scan.created_at.desc()).limit(limit).all()
+    return scans_active_query().order_by(Scan.created_at.desc()).limit(limit).all()
 
 
 def home_stats() -> dict[str, int]:
     """Compute headline dashboard statistics for the landing page."""
 
-    total_scans = Scan.query.count()
-    anemic_detected = Scan.query.filter(Scan.prediction == "Anemic").count()
-    non_anemic_detected = Scan.query.filter(Scan.prediction == "Non-Anemic").count()
+    total_scans = scans_active_query().count()
+    anemic_detected = scans_active_query().filter(Scan.prediction == "Anemic").count()
+    non_anemic_detected = scans_active_query().filter(Scan.prediction == "Non-Anemic").count()
     week_start = datetime.utcnow() - timedelta(days=7)
-    this_week = Scan.query.filter(Scan.created_at >= week_start).count()
+    this_week = scans_active_query().filter(Scan.created_at >= week_start).count()
 
     return {
         "total_scans": total_scans,
@@ -844,7 +858,7 @@ def age_group_label(age: int | None) -> str:
 def analytics_payload(start_date: date | None, end_date: date | None) -> dict[str, Any]:
     """Build the data payload that powers the analytics dashboard."""
 
-    query = Scan.query
+    query = scans_active_query()
 
     if start_date is not None:
         query = query.filter(Scan.created_at >= datetime.combine(start_date, time.min))
@@ -1116,24 +1130,26 @@ def verify_database_connection() -> bool:
     """
     from config import DATABASE_BACKEND, DATABASE_URI
 
-    masked = DATABASE_URI[:50] + "…" if len(DATABASE_URI) > 50 else DATABASE_URI
+    masked = DATABASE_URI[:50] + "..." if len(DATABASE_URI) > 50 else DATABASE_URI
     try:
         result = db.session.execute(text("SELECT 1")).scalar()
         if result == 1:
             print(
-                f"[db] ✓ Connected to {DATABASE_BACKEND} database: {masked}",
+                f"[db] OK Connected to {DATABASE_BACKEND} database: {masked}",
                 flush=True,
             )
             if DATABASE_BACKEND == "sqlite":
                 print(
-                    "[db] ⚠ WARNING: SQLite is active. Patient history will be LOST on "
-                    "Render redeploys unless ANEMIA_RUNTIME_ROOT points to a persistent "
-                    "disk path. Set DATABASE_URL to use Postgres instead.",
+                    "[db] WARN SQLite is active. Patient rows are stored in a local file; "
+                    "they can be LOST on serverless redeploys or new instances unless the "
+                    "database file lives on a persistent disk. Set DATABASE_URL (Postgres) "
+                    "for durable history (recommended on Render and required for long-term "
+                    "retention on Vercel serverless).",
                     flush=True,
                 )
             return True
     except Exception as exc:
-        print(f"[db] ✗ Database connection FAILED ({DATABASE_BACKEND}): {exc}", flush=True)
+        print(f"[db] FAIL Database connection FAILED ({DATABASE_BACKEND}): {exc}", flush=True)
     return False
 
 
@@ -1152,6 +1168,7 @@ def create_app() -> Flask:
 
     with app.app_context():
         db.create_all()
+        apply_schema_patches(db)
         configure_sqlite_runtime()
         initialize_search_index()
         verify_database_connection()
@@ -1241,6 +1258,8 @@ def create_app() -> Flask:
             "runtime_root": str(RUNTIME_ROOT) if RUNTIME_ROOT is not None else None,
             "uploads_dir": str(UPLOADS_DIR),
             "gradcam_dir": str(FLASK_CONFIG.gradcam_folder),
+            "vercel": bool(os.getenv("VERCEL")),
+            "durable_database_recommended": DATABASE_BACKEND != "sqlite" or bool(RUNTIME_ROOT),
         }, 200
 
     def serve_media_file(kind: str, filename: str):
@@ -1400,7 +1419,7 @@ def create_app() -> Flask:
     def result_page(scan_id: int):
         """Show the full result page for one scan."""
 
-        record = Scan.query.get_or_404(scan_id)
+        record = scans_active_query().filter_by(id=scan_id).first_or_404()
         quality = assess_image_quality(record.image_file_path or Path(str(record.image_path)))
         return render_result_screen(record, quality, persisted=True)
 
@@ -1419,7 +1438,7 @@ def create_app() -> Flask:
         order = request.args.get("order", "desc")
         page = request.args.get("page", default=1, type=int)
 
-        query = apply_history_filters(Scan.query, filters)
+        query = apply_history_filters(scans_active_query(), filters)
         query = sorted_history_query(query, sort, order)
         pagination = query.paginate(page=page, per_page=HISTORY_PAGE_SIZE, error_out=False)
 
@@ -1443,7 +1462,7 @@ def create_app() -> Flask:
             "start_date": request.args.get("start_date", ""),
             "end_date": request.args.get("end_date", ""),
         }
-        query = apply_history_filters(Scan.query, filters).order_by(Scan.created_at.desc())
+        query = apply_history_filters(scans_active_query(), filters).order_by(Scan.created_at.desc())
         output = io.StringIO()
         writer = csv.writer(output)
         writer.writerow(
@@ -1491,20 +1510,20 @@ def create_app() -> Flask:
     def delete_scan(scan_id: int):
         """Delete one record from the history table."""
 
-        record = Scan.query.get_or_404(scan_id)
+        record = scans_active_query().filter_by(id=scan_id).first_or_404()
 
-        for file_path in (record.image_file_path, record.gradcam_file_path):
-            if not file_path:
-                continue
-            try:
-                if file_path.exists():
-                    file_path.unlink()
-            except OSError:
-                pass
+        try:
+            record.deleted_at = datetime.utcnow()
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            flash("Could not archive this scan. Please try again.", "danger")
+            return redirect(url_for("history_page"))
 
-        db.session.delete(record)
-        db.session.commit()
-        flash("Scan record deleted successfully.", "success")
+        flash(
+            "Scan removed from active history. The row and files are kept for recovery and audit.",
+            "success",
+        )
         return redirect(url_for("history_page"))
 
     @app.route("/analytics")
@@ -1528,7 +1547,7 @@ def create_app() -> Flask:
     def export_pdf(scan_id: int):
         """Generate and download a PDF report for one scan."""
 
-        record = Scan.query.get_or_404(scan_id)
+        record = scans_active_query().filter_by(id=scan_id).first_or_404()
         report_path = generate_pdf_report(record)
         return send_file(report_path, as_attachment=True, download_name=report_path.name)
 

@@ -67,24 +67,26 @@ def run_migrations() -> None:
     """Create all tables using the Flask-SQLAlchemy metadata."""
 
     from app import create_app, db
+    from schema_patches import apply_schema_patches
 
     app = create_app()
     with app.app_context():
         print("[migrate] Running db.create_all() …", flush=True)
         db.create_all()
+        apply_schema_patches(db)
         print("[migrate] Tables created / verified successfully.", flush=True)
 
         # Report which backend is active so we can confirm Postgres is used.
         from config import DATABASE_BACKEND, DATABASE_URI
-        masked = DATABASE_URI[:40] + "…" if len(DATABASE_URI) > 40 else DATABASE_URI
+        masked = DATABASE_URI[:40] + "..." if len(DATABASE_URI) > 40 else DATABASE_URI
         print(f"[migrate] Active DB backend : {DATABASE_BACKEND}", flush=True)
         print(f"[migrate] Active DB URI     : {masked}", flush=True)
 
         if DATABASE_BACKEND == "sqlite":
             print(
-                "[migrate] WARNING: Using SQLite. Patient history will be LOST on Render "
-                "redeploys unless a persistent disk is mounted at the database path. "
-                "Set DATABASE_URL to the Postgres connection string to persist data.",
+                "[migrate] WARNING: Using SQLite. Patient history can be LOST on redeploys "
+                "unless the DB file is on a persistent disk. Set DATABASE_URL to Postgres for "
+                "durable storage (required for long-term retention on Vercel serverless).",
                 flush=True,
             )
 

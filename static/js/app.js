@@ -36,6 +36,9 @@ function bindPreferences() {
             html.setAttribute("data-theme", isDark ? "light" : "dark");
             localStorage.setItem("anemiavision-theme", isDark ? "light" : "dark");
             darkModeToggle.setAttribute("aria-pressed", String(!isDark));
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
         });
     }
 
@@ -120,12 +123,44 @@ function revealSkeletons() {
     }, 1200);
 }
 
+function bindStageParallax() {
+    const stage = document.getElementById("avStage");
+    if (!stage) return;
+
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (reduced.matches) return;
+
+    let ticking = false;
+    let lastX = 0.5;
+    let lastY = 0.5;
+
+    function apply() {
+        ticking = false;
+        stage.style.setProperty("--av-mx", String(lastX));
+        stage.style.setProperty("--av-my", String(lastY));
+    }
+
+    document.addEventListener(
+        "pointermove",
+        (event) => {
+            lastX = event.clientX / window.innerWidth;
+            lastY = event.clientY / window.innerHeight;
+            if (!ticking) {
+                ticking = true;
+                requestAnimationFrame(apply);
+            }
+        },
+        { passive: true }
+    );
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     applyStoredPreferences();
     updateCurrentDateTime();
     setInterval(updateCurrentDateTime, 1000 * 30);
     bindPreferences();
     bindSidebar();
+    bindStageParallax();
     animateConfidenceMeters();
     bindToasts();
     bindKeyboardShortcuts();

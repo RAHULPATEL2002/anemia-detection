@@ -69,8 +69,8 @@
                                 <div class="table-actions">
                                     <a href="{{ url_for('result_page', scan_id=scan.id) }}" class="btn btn-sm btn-outline-secondary">View</a>
                                     <a href="{{ url_for('export_pdf', scan_id=scan.id) }}" class="btn btn-sm btn-outline-secondary">PDF</a>
-                                    <form method="post" action="{{ url_for('delete_scan', scan_id=scan.id) }}" onsubmit="return confirm('Delete this scan record?');">
-                                        <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                                    <form method="post" action="{{ url_for('delete_scan', scan_id=scan.id) }}" onsubmit="return confirm('Remove this scan from active history? The record stays in the database for audit recovery.');">
+                                        <button class="btn btn-sm btn-outline-danger" type="submit">Archive</button>
                                     </form>
                                 </div>
                             </td>

@@ -51,7 +51,18 @@ def resolve_path(path_value: str | Path, base_dir: Path = PROJECT_ROOT) -> Path:
 
 
 def resolve_runtime_root() -> Path | None:
-    """Return the configured persistent runtime root when one is available."""
+    """Return the configured persistent runtime root when one is available.
+
+    Priority:
+    1. ``ANEMIA_RUNTIME_ROOT`` — use on any host (Render disk, Fly volume, custom NAS).
+    2. Render defaults — when ``RENDER`` is set, try ``RENDER_DISK_ROOT`` / ``/var/data``.
+
+    **Vercel serverless:** there is no durable local disk between invocations. Set
+    ``DATABASE_URL`` to a managed Postgres (Neon, Supabase, Vercel Postgres) so patient
+    *rows* survive redeploys. For scan images and Grad-CAM files, either mount external
+    object storage (S3 / Vercel Blob) in a future release or deploy this Docker app on
+    Render/Fly/Railway with a persistent volume (see ``render.yaml``).
+    """
 
     explicit_root = os.getenv("ANEMIA_RUNTIME_ROOT")
     if explicit_root:

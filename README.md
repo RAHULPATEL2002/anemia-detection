@@ -183,6 +183,18 @@ Recommended setup:
 
 This repository includes a sample [`render.yaml`](render.yaml) blueprint that provisions both the web service and a managed Render Postgres database. The tracked `database/anemia_vision.db` file should not be kept in Git for production deployments.
 
+### Vercel (and other serverless)
+
+Vercel function instances do **not** keep a writable disk between requests or after redeploys. For patient rows to remain for months or years:
+
+1. Create a **managed Postgres** database (for example [Neon](https://neon.tech), [Supabase](https://supabase.com), or Vercel Postgres).
+2. Set **`DATABASE_URL`** (or `SQLALCHEMY_DATABASE_URI`) to the Postgres connection string in the Vercel project **Environment Variables**.
+3. Run **`python migrate.py`** in your build step (or call the same logic in your entrypoint) so tables exist before traffic hits the app.
+4. Set **`FLASK_SECRET_KEY`** to a long random string.
+5. **Images / Grad-CAM / PDFs** still need a persistent volume or object storage if every instance must see the same files. The default layout writes uploads under `ANEMIA_RUNTIME_ROOT` / project paths; on pure serverless without a shared volume, use **Render**, **Fly.io**, **Railway**, or Docker with a disk (see `render.yaml`) for full file persistence, or extend storage to S3 / Vercel Blob.
+
+The app uses **soft delete** for history: choosing **Archive** sets `deleted_at` and hides the scan from lists, but the database row (and files on disk) are retained for audit recovery.
+
 ## API Documentation
 
 ### POST `/api/predict`
@@ -268,7 +280,8 @@ When available, real metrics are loaded from the latest evaluation artifacts in 
   - `static/uploads/`
   - `static/gradcam/`
 - `render.yaml` provisions a Render Postgres database for patient history and mounts a persistent disk at `/var/data` for uploaded media and reports
-- The `/health` endpoint is used by both Docker and application readiness checks
+- The `/health` endpoint is used by both Docker and application readiness checks; it reports `database_backend`, `vercel`, and `durable_database_recommended`
+- History **Archive** uses a **soft delete** (`deleted_at`): rows stay in the database for audit recovery while hidden from lists
 
 ## Screenshots
 
