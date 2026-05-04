@@ -230,11 +230,21 @@ GRADCAM_DIR = resolve_path(
 DATABASE_PATH = resolve_path(os.getenv("ANEMIA_DATABASE_PATH", DATABASE_DIR / "anemia_vision.db"))
 DATABASE_URI = build_database_uri()
 DATABASE_BACKEND = database_backend_name(DATABASE_URI)
-BEST_CHECKPOINT_PATH = resolve_path(
-    os.getenv("ANEMIA_BEST_CHECKPOINT", MODELS_DIR / "best_model.pth")
+_DEFAULT_BEST_CHECKPOINT = first_existing_path(
+    [
+        MODELS_DIR / "20260428_2028_best_model.pth",
+        MODELS_DIR / "best_model.pth",
+    ]
+)
+BEST_CHECKPOINT_PATH = resolve_path(os.getenv("ANEMIA_BEST_CHECKPOINT", str(_DEFAULT_BEST_CHECKPOINT)))
+_DEFAULT_LATEST_CHECKPOINT = first_existing_path(
+    [
+        MODELS_DIR / "20260428_2028_last_checkpoint.pth",
+        MODELS_DIR / "last_checkpoint.pth",
+    ]
 )
 LATEST_CHECKPOINT_PATH = resolve_path(
-    os.getenv("ANEMIA_LATEST_CHECKPOINT", MODELS_DIR / "last_checkpoint.pth")
+    os.getenv("ANEMIA_LATEST_CHECKPOINT", str(_DEFAULT_LATEST_CHECKPOINT))
 )
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
