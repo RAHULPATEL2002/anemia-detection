@@ -1,56 +1,66 @@
 # AnemiaVision AI
 
+> Hospital-grade anemia screening powered by EfficientNet-B3 deep learning plus Grad-CAM explainability.
 
-![Python](https://img.shields.io/badge/Python-3.10-blue)
+![Python](https://img.shields.io/badge/Python-3.12-blue)
 ![PyTorch](https://img.shields.io/badge/PyTorch-EfficientNet--B3-red)
-![Flask](https://img.shields.io/badge/Flask-Hospital%20Web%20App-black)
-![SQLite](https://img.shields.io/badge/SQLite-Patient%20Records-0f766e)
+![Flask](https://img.shields.io/badge/Flask-Medical%20AI-black)
 ![Docker](https://img.shields.io/badge/Docker-Production%20Ready-2496ED)
+![License](https://img.shields.io/badge/License-TBD-slate)
 
-AnemiaVision AI is a hospital-grade, smartphone-first anemia screening platform built for conjunctiva and fingernail image analysis. It combines deep learning, Grad-CAM explainability, patient record management, PDF reporting, analytics, and a production-ready Flask deployment stack.
+![Demo GIF placeholder](docs/demo.gif)
 
-## Demo
+## What's New (UI v2.0)
 
-`docs/demo.gif`
+- Complete UI redesign with a glassmorphism dark medical theme
+- Animated particle background, floating orbs, cursor glow, and page transitions
+- Drag-and-drop image upload with live preview and local image quality hints
+- Mobile-first camera capture workflow with rear-camera preference
+- Animated Grad-CAM comparison slider on result pages
+- Redesigned analytics dashboard with Chart.js dark-mode charts
+- Modern history grid/list toggle with filters, confidence bars, and CSV export
+- Full IntersectionObserver scroll animations and animated counters
 
-Demo GIF placeholder: add a short screen recording here showing upload, prediction, result review, and PDF export.
+## Quick Start
 
-## Features
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python app.py
+```
 
-- 🩺 AI-assisted anemia screening from smartphone conjunctiva and fingernail images
-- 📁 Smart dataset discovery that handles `anemic`, `Anemic`, `Anemia`, `non-anemic`, `Non-anemic`, and `Non_Anemia`
-- 🧠 EfficientNet-B3 transfer learning with class balancing, mixed precision, warmup, cosine annealing, and early stopping
-- 🔥 Grad-CAM explainability with side-by-side visual overlays
-- 📄 Professional PDF report generation for hospitals and clinics
-- 📊 Analytics dashboard with Chart.js visualizations
-- 📱 Mobile-first capture workflow with rear-camera preference and upload fallback
-- 🧾 SQLite-backed patient history, CSV export, and full-text patient-name search
-- 🚦 Per-IP rate limiting for prediction endpoints
-- 🐳 Docker and Gunicorn deployment support
+Open `http://127.0.0.1:5000`.
 
-## Project Overview
+To validate the dataset before training:
 
-The system is designed for real-world screening assistance in hospitals, clinics, outreach camps, and home use. The workflow is:
+```bash
+python utils/check_dataset.py
+```
+
+To run with Docker:
+
+```bash
+docker compose up --build
+```
+
+## Screenshots
+
+- Home page screenshot placeholder
+- Scan workflow screenshot placeholder
+- Result and Grad-CAM comparison screenshot placeholder
+- History dashboard screenshot placeholder
+- Analytics dashboard screenshot placeholder
+
+## How It Works
 
 1. Capture or upload a smartphone image of the eye conjunctiva or fingernail.
-2. Validate image quality and reject unusable scans before inference.
-3. Run the EfficientNet-B3 classifier and calibrated probability pipeline.
-4. Generate a Grad-CAM focus image and patient-facing risk summary.
-5. Save the scan record, export a PDF report, and view analytics over time.
+2. Validate image quality and reject unsupported formats.
+3. Run the EfficientNet classifier and calibrated probability pipeline.
+4. Generate a Grad-CAM overlay to show the AI focus region.
+5. Save the scan, display risk guidance, and export a PDF report.
 
-## Tech Stack
-
-- Backend: Flask, Flask-SQLAlchemy, Gunicorn
-- Deep Learning: PyTorch, torchvision, EfficientNet-B3
-- Imaging: Pillow, OpenCV
-- Database: SQLite
-- Frontend: Bootstrap 5, custom CSS, Chart.js, Lucide icons
-- Reports: ReportLab
-- Deployment: Docker, docker-compose
-
-## Dataset Setup
-
-Use the existing dataset structure exactly as below:
+Dataset folders are discovered flexibly across common class naming variants:
 
 ```text
 dataset/
@@ -65,38 +75,18 @@ dataset/
     └── Non-anemic/
 ```
 
-Important notes:
+## Architecture
 
-- The mixed capitalization is intentional and already handled in `dataset.py`.
-- Eye conjunctiva and fingernail images are intentionally mixed in the same folders.
-- The loader maps both modalities into the same anemia classification task:
-  - class `0` = `non-anemic`
-  - class `1` = `anemic`
-
-To validate the dataset before training:
-
-```bash
-python utils/check_dataset.py
+```mermaid
+flowchart LR
+    Browser[Vanilla JS + Jinja UI] --> Flask[Flask routes]
+    Flask --> Validator[Image validation]
+    Validator --> Model[PyTorch EfficientNet-B3]
+    Model --> GradCAM[Grad-CAM explainability]
+    Flask --> DB[(SQLite or PostgreSQL)]
+    Flask --> Reports[PDF reports]
+    Flask --> Media[Uploads and Grad-CAM media]
 ```
-
-## Installation
-
-### Local Setup
-
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-python utils/check_dataset.py
-```
-
-### Docker Setup
-
-```bash
-docker compose up --build
-```
-
-The production container serves the app on `http://127.0.0.1:5000`.
 
 ## Training
 
@@ -106,12 +96,7 @@ Start a fresh training run:
 python train.py
 ```
 
-CPU note:
-
-- When running on CPU, training automatically uses a fast profile (EfficientNet-B0, 224px, fewer epochs) to avoid multi-hour runs.
-- To force the full EfficientNet-B3 profile, set `ANEMIA_TRAIN_PROFILE=full` and `ANEMIA_MODEL_ARCH=efficientnet_b3` before running `train.py`.
-
-Resume from the latest checkpoint:
+Resume from a checkpoint:
 
 ```bash
 python train.py --resume models/last_checkpoint.pth
@@ -123,40 +108,76 @@ Evaluate the trained model:
 python evaluate.py --split test
 ```
 
-Artifacts are saved to:
+Artifacts are saved under `models/` and `logs/`.
 
-- `models/best_model.pth`
-- `models/last_checkpoint.pth`
-- `logs/training.log`
-- `logs/evaluation/`
+## API Reference
 
-## Running the App
+### `POST /api/predict`
 
-### Development
+JSON request:
 
-```bash
-python app.py
+```json
+{
+  "image": "<base64-image-or-data-uri>",
+  "patient_name": "Aarav Kumar",
+  "age": 25,
+  "gender": "Male",
+  "phone": "9999999999",
+  "image_type": "Eye Conjunctiva",
+  "notes": "Fatigue for 2 weeks"
+}
 ```
 
-### Mobile Use (Camera Capture)
+Success response:
 
-- Mobile camera access via the **Camera Capture** tab requires HTTPS in most browsers.
-- The upload button now uses the `capture="environment"` hint, which opens the camera on many phones even over HTTP.
-- For full camera support, deploy behind HTTPS (for example via a reverse proxy with a TLS certificate).
-
-### HTTPS Reverse Proxy (Caddy)
-
-1. Point your domain DNS A record to the server IP.
-2. Install Caddy and place your domain in `deploy/Caddyfile`.
-3. Run:
-
-```bash
-caddy run --config deploy/Caddyfile
+```json
+{
+  "success": true,
+  "scan_id": 42,
+  "public_scan_id": "AV-000042",
+  "prediction": "Non-Anemic",
+  "confidence": 0.912,
+  "risk_level": "Low Risk",
+  "gradcam_url": "/media/gradcam/scan_042.jpg",
+  "result_url": "/result/42",
+  "pdf_url": "/export/pdf/42"
+}
 ```
 
-Your app will be available at `https://your-domain.example.com`, and mobile camera capture will work.
+Notes:
 
-### Production
+- Base64 payloads may be raw strings or data URIs.
+- Prediction endpoints are rate-limited per IP.
+- Uploads are optimized before inference and storage.
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Frontend | Vanilla JS, CSS3, Chart.js |
+| Backend | Flask, Gunicorn |
+| AI Model | PyTorch, torchvision, EfficientNet-B3 |
+| Database | SQLite / PostgreSQL |
+| Reports | ReportLab |
+| Deployment | Docker, Render, Vercel entrypoint |
+
+## Deployment
+
+### Render
+
+Use `render.yaml` to provision the web service and Postgres database. For persistent media and reports, attach a disk and set:
+
+```text
+ANEMIA_RUNTIME_ROOT=/var/data/anemiavision
+DATABASE_URL=<postgres connection string>
+FLASK_SECRET_KEY=<long random secret>
+```
+
+### Vercel
+
+The repository includes `api/index.py` and `vercel.json` for the Flask serverless entrypoint. Set `DATABASE_URL` to managed Postgres for durable patient rows. Serverless disk is not durable, so use Render/Fly/Railway or object storage for persistent uploads and Grad-CAM files.
+
+### Production Command
 
 ```bash
 gunicorn --bind 0.0.0.0:5000 --workers 2 app:app
@@ -168,141 +189,6 @@ Health check:
 GET /health
 ```
 
-### Render (persistent data + Grad-CAM)
-
-Render web services use an ephemeral filesystem by default. If the app stores patient history in a local SQLite file inside the service, new records can disappear after a restart or redeploy and the app may appear to reset back to whatever database file was baked into the repo image.
-
-Recommended setup:
-
-1. Use a Render plan that supports persistent disks.
-2. Use a managed Postgres database for patient history by setting `DATABASE_URL`.
-3. Attach a disk with mount path `/var/data` so uploaded images, Grad-CAM outputs, and PDF reports persist.
-4. Set `ANEMIA_RUNTIME_ROOT=/var/data/anemiavision`.
-5. Set `ANEMIA_ENABLE_GRADCAM=true`.
-6. Redeploy the service.
-
-This repository includes a sample [`render.yaml`](render.yaml) blueprint that provisions both the web service and a managed Render Postgres database. The tracked `database/anemia_vision.db` file should not be kept in Git for production deployments.
-
-### Vercel (and other serverless)
-
-Vercel function instances do **not** keep a writable disk between requests or after redeploys. For patient rows to remain for months or years:
-
-1. Create a **managed Postgres** database (for example [Neon](https://neon.tech), [Supabase](https://supabase.com), or Vercel Postgres).
-2. Set **`DATABASE_URL`** (or `SQLALCHEMY_DATABASE_URI`) to the Postgres connection string in the Vercel project **Environment Variables**.
-3. Run **`python migrate.py`** in your build step (or call the same logic in your entrypoint) so tables exist before traffic hits the app.
-4. Set **`FLASK_SECRET_KEY`** to a long random string.
-5. **Images / Grad-CAM / PDFs** still need a persistent volume or object storage if every instance must see the same files. The default layout writes uploads under `ANEMIA_RUNTIME_ROOT` / project paths; on pure serverless without a shared volume, use **Render**, **Fly.io**, **Railway**, or Docker with a disk (see `render.yaml`) for full file persistence, or extend storage to S3 / Vercel Blob.
-
-The app uses **soft delete** for history: choosing **Archive** sets `deleted_at` and hides the scan from lists, but the database row (and files on disk) are retained for audit recovery.
-
-## API Documentation
-
-### POST `/api/predict`
-
-Content type:
-
-```text
-application/json
-```
-
-Example request:
-
-```json
-{
-  "image": "<base64-image-or-data-uri>",
-  "patient_name": "Aarav Kumar",
-  "age": 25,
-  "gender": "M",
-  "phone": "9999999999",
-  "image_type": "Eye Conjunctiva",
-  "notes": "Fatigue for 2 weeks"
-}
-```
-
-Example success response:
-
-```json
-{
-  "success": true,
-  "scan_id": 42,
-  "public_scan_id": "AV-000042",
-  "prediction": "Non-Anemic",
-  "confidence": 0.912,
-  "risk_level": "Low Risk",
-  "medical_advice": "Results look healthy at this screening level, with no strong visual signs of anemia detected.",
-  "gradcam_url": "/media/gradcam/scan_042.jpg",
-  "result_url": "/result/42",
-  "pdf_url": "/export/pdf/42"
-}
-```
-
-Example error response:
-
-```json
-{
-  "success": false,
-  "error": "Too many prediction requests from this device. Please wait about 18 seconds and try again."
-}
-```
-
-Notes:
-
-- Base64 payloads can be raw base64 strings or data URIs.
-- Prediction routes are rate-limited to `10` requests per minute per IP.
-- Uploads are resized to `300x300` before saving.
-
-## Results
-
-Target evaluation goals for the final trained checkpoint:
-
-| Metric | Target |
-|---|---:|
-| Accuracy | > 90% |
-| F1 Score | Strong clinical generalization target |
-| AUC-ROC | > 0.93 |
-| Sensitivity | > 88% |
-| Specificity | > 88% |
-
-When available, real metrics are loaded from the latest evaluation artifacts in `logs/evaluation/`.
-
-## Deployment Notes
-
-- `Dockerfile` uses `python:3.10-slim`
-- Gunicorn runs with `2` workers on port `5000`
-- Patient history can be stored in Postgres via `DATABASE_URL`
-- Runtime data can be redirected with `ANEMIA_RUNTIME_ROOT`
-- Uploaded scan images are served from `/media/uploads/<filename>`
-- Grad-CAM images are served from `/media/gradcam/<filename>`
-- `docker-compose.yml` mounts persistent volumes for:
-  - `models/`
-  - `reports/`
-  - `logs/`
-  - `static/uploads/`
-  - `static/gradcam/`
-- `render.yaml` provisions a Render Postgres database for patient history and mounts a persistent disk at `/var/data` for uploaded media and reports
-- The `/health` endpoint is used by both Docker and application readiness checks; it reports `database_backend`, `vercel`, and `durable_database_recommended`
-- History **Archive** uses a **soft delete** (`deleted_at`): rows stay in the database for audit recovery while hidden from lists
-
-## Screenshots
-
-Add project screenshots here:
-
-- Dashboard screenshot placeholder
-- Scan page screenshot placeholder
-- Result page screenshot placeholder
-- Analytics page screenshot placeholder
-
-## Contributing
-
-1. Fork the repository or create a feature branch.
-2. Keep the mobile-first and hospital-grade design language intact.
-3. Run dataset checks, compile checks, and route smoke tests before opening a PR.
-4. Document any user-facing workflow changes in this README.
-
-## License
-
-Add your preferred project license here, for example `MIT` or `Apache-2.0`.
-
 ## Disclaimer
 
-This tool is for screening assistance only and does not replace clinical diagnosis. Always consult a qualified medical professional.
+AnemiaVision AI is for screening assistance only. It is not a clinical diagnostic tool and does not replace professional medical evaluation, CBC testing, or physician judgment.

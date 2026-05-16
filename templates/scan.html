@@ -1,178 +1,163 @@
 {% extends "base.html" %}
 
 {% block title %}New Scan | AnemiaVision AI{% endblock %}
-{% block page_title %}New Patient Scan{% endblock %}
+{% block page_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/index.css') }}">
+{% endblock %}
 
 {% block content %}
-<section class="surface-card fade-in-up scan-workspace-card">
-    <div class="scan-page-head">
-        <div class="scan-page-head__copy">
-            <span class="eyebrow">Acquisition workflow</span>
-            <h3>Capture a new screening image</h3>
-            <p class="text-secondary small mb-0 mt-2">
-                Upload conjunctiva or fingernail photos, or use the camera when HTTPS is available. Patient details stay on this server until you export.
-            </p>
-        </div>
-        <div
-            class="model-readiness-card {% if predictor_loaded %}model-readiness-card--ready{% elif checkpoint_available %}model-readiness-card--loading{% else %}model-readiness-card--offline{% endif %}"
-            role="status"
-            aria-live="polite"
-        >
-            <div class="readiness-icon" aria-hidden="true">
+<section class="page-hero">
+    <div class="page-wrap">
+        <span class="section-kicker">AI acquisition workflow</span>
+        <h1><span class="gradient-text">New Patient Scan</span></h1>
+        <p>Capture or upload a conjunctiva or fingernail image, add patient context, then run the screening model.</p>
+    </div>
+</section>
+
+<section class="section-tight">
+    <div class="page-wrap">
+        <div class="model-readiness-card {% if predictor_loaded %}model-readiness-card--ready{% elif checkpoint_available %}model-readiness-card--loading{% else %}model-readiness-card--offline{% endif %}" role="status" aria-live="polite">
+            <i data-lucide="{% if predictor_loaded %}cpu{% elif checkpoint_available %}loader-2{% else %}cloud-off{% endif %}"></i>
+            <div>
                 {% if predictor_loaded %}
-                    <i data-lucide="cpu"></i>
+                    <strong id="modelStatusBadge">Model Ready</strong>
+                    <p id="modelStatusHint">The screening model is loaded and ready for inference.</p>
                 {% elif checkpoint_available %}
-                    <i data-lucide="loader-2"></i>
+                    <strong id="modelStatusBadge">Model Loading</strong>
+                    <p id="modelStatusHint">Weights are available; the server is loading the model into memory.</p>
                 {% else %}
-                    <i data-lucide="cloud-off"></i>
+                    <strong id="modelStatusBadge">Model Unavailable</strong>
+                    <p id="modelStatusHint">No trained checkpoint was found for this deployment.</p>
                 {% endif %}
             </div>
-            <div class="readiness-body">
-                <div class="readiness-title">
-                    {% if predictor_loaded %}
-                        <span class="badge text-bg-success" id="modelStatusBadge">Model ready</span>
-                    {% elif checkpoint_available %}
-                        <span class="badge text-bg-warning text-dark" id="modelStatusBadge">Model loading</span>
-                    {% else %}
-                        <span class="badge text-bg-danger" id="modelStatusBadge">Model unavailable</span>
-                    {% endif %}
-                    <span class="text-muted small fw-semibold text-uppercase" style="letter-spacing: 0.06em;">Inference engine</span>
-                </div>
-                <p id="modelStatusHint">
-                    {% if predictor_loaded %}
-                        The screening model is loaded in memory and ready to analyze new images.
-                    {% elif checkpoint_available %}
-                        Weights are on disk; the server is still loading them into GPU/RAM. Keep this tab open until the badge shows Model ready.
-                    {% else %}
-                        No trained checkpoint was found for this deployment. Add weights under <code>models/</code> or set <code>ANEMIA_BEST_CHECKPOINT</code>.
-                    {% endif %}
-                </p>
-            </div>
         </div>
-    </div>
 
-    <form id="scanForm" method="post" action="{{ url_for('predict_route') }}" enctype="multipart/form-data" class="scan-layout">
-        <div class="scan-capture-panel">
-            <ul class="nav nav-pills scan-tabs" id="scanTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="upload-tab" data-bs-toggle="pill" data-bs-target="#upload-pane" type="button" role="tab">
-                        Upload Image
+        <form id="scanForm" method="post" action="{{ url_for('predict_route') }}" enctype="multipart/form-data" class="scan-layout scan-workspace-card">
+            <div class="scan-capture-panel">
+                <div class="scan-tabs" id="scanTabs" role="tablist">
+                    <button class="scan-tab active" id="upload-tab" data-target="#upload-pane" type="button" role="tab">
+                        <i data-lucide="folder-up"></i> Upload Image
                     </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="camera-tab" data-bs-toggle="pill" data-bs-target="#camera-pane" type="button" role="tab">
-                        Camera Capture
+                    <button class="scan-tab" id="camera-tab" data-target="#camera-pane" type="button" role="tab">
+                        <i data-lucide="camera"></i> Camera Capture
                     </button>
-                </li>
-            </ul>
-
-            <div id="cameraHttpWarning" class="camera-warning d-none" role="alert">
-                <i data-lucide="lock"></i>
-                <div>
-                    <strong>Camera needs HTTPS on mobile browsers.</strong>
-                    <p>Open the secure (https) site, or use Upload Image if you cannot enable HTTPS yet.</p>
-                </div>
-            </div>
-
-            <div class="tab-content mt-4">
-                <div class="tab-pane fade show active" id="upload-pane" role="tabpanel">
-                    <label for="imageInput" class="dropzone" id="dropzone">
-                        <input type="file" id="imageInput" name="image" accept="image/*" capture="environment" class="visually-hidden">
-                        <div>
-                            <i data-lucide="cloud-upload"></i>
-                            <h4>Drag & drop an image here</h4>
-                            <p>or tap to upload (mobile opens the camera).</p>
-                        </div>
-                    </label>
                 </div>
 
-                <div class="tab-pane fade" id="camera-pane" role="tabpanel">
-                    <div class="camera-shell">
-                        <video id="cameraFeed" class="camera-feed" playsinline autoplay muted></video>
-                        <canvas id="cameraCanvas" class="d-none"></canvas>
-                        <p id="cameraStatus" class="camera-status">Rear camera is preferred for mobile capture. If the camera is unavailable, use file upload.</p>
-                        <div class="camera-actions">
-                            <button class="btn btn-outline-secondary" type="button" id="startCameraButton">Start Camera</button>
-                            <button class="btn btn-primary" type="button" id="captureButton">Capture Image</button>
-                            <button class="btn btn-outline-secondary d-none" type="button" id="retakeButton">Retake</button>
-                            <button class="btn btn-success d-none" type="button" id="confirmCaptureButton">Use This Photo</button>
+                <div id="cameraHttpWarning" class="camera-warning d-none" role="alert">
+                    <i data-lucide="lock"></i>
+                    <div>
+                        <strong>Camera needs HTTPS on mobile browsers.</strong>
+                        <p>Open the secure site, or use Upload Image if HTTPS is unavailable.</p>
+                    </div>
+                </div>
+
+                <div class="tab-content">
+                    <div class="tab-pane show active" id="upload-pane" role="tabpanel">
+                        <label for="imageInput" class="dropzone" id="dropzone">
+                            <input type="file" id="imageInput" name="image" accept="image/*" capture="environment" class="visually-hidden">
+                            <span class="dropzone-icon"><i data-lucide="cloud-upload"></i></span>
+                            <strong>Drag & drop a scan image</strong>
+                            <span>or click to upload from camera/gallery</span>
+                            <small id="fileMeta">JPG, PNG, WEBP supported</small>
+                        </label>
+                    </div>
+
+                    <div class="tab-pane" id="camera-pane" role="tabpanel">
+                        <div class="camera-shell">
+                            <video id="cameraFeed" class="camera-feed" playsinline autoplay muted></video>
+                            <canvas id="cameraCanvas" class="d-none"></canvas>
+                            <p id="cameraStatus" class="camera-status">Rear camera is preferred. Keep the image sharp and evenly lit.</p>
+                            <div class="camera-actions">
+                                <button class="btn btn-outline-secondary" type="button" id="startCameraButton"><i data-lucide="video"></i> Start</button>
+                                <button class="btn btn-primary" type="button" id="captureButton"><i data-lucide="scan-line"></i> Capture</button>
+                                <button class="btn btn-outline-secondary d-none" type="button" id="retakeButton"><i data-lucide="rotate-ccw"></i> Retake</button>
+                                <button class="btn btn-success d-none" type="button" id="confirmCaptureButton"><i data-lucide="check"></i> Use Photo</button>
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                <div class="preview-panel">
+                    <img id="imagePreview" class="preview-image d-none" alt="Selected preview" loading="lazy">
+                    <div id="previewPlaceholder" class="preview-placeholder">
+                        <i data-lucide="image"></i>
+                        Preview appears here after upload or capture.
+                    </div>
+                </div>
+
+                <div class="quality-panel" aria-live="polite">
+                    <span id="qualityStatus" class="quality-pill">Awaiting image</span>
+                    <small id="qualityScore">Quality score will appear here.</small>
+                </div>
+
+                <input type="hidden" id="capturedImageData" name="captured_image_data">
             </div>
 
-            <div class="preview-panel mt-4">
-                <img id="imagePreview" class="preview-image d-none" alt="Selected preview">
-                <div id="previewPlaceholder" class="preview-placeholder">
-                    Preview will appear here after upload or capture.
+            <div class="scan-form-panel">
+                <div class="section-header compact">
+                    <div>
+                        <span class="section-kicker">Patient info</span>
+                        <h2>Visit details</h2>
+                    </div>
+                    <span class="pill">* Required</span>
                 </div>
-            </div>
-
-            <div class="quality-panel mt-3" aria-live="polite">
-                <span id="qualityStatus" class="quality-pill">Awaiting image</span>
-                <small id="qualityScore">Quality score will appear here.</small>
-            </div>
-
-            <input type="hidden" id="capturedImageData" name="captured_image_data">
-        </div>
-
-        <div class="scan-form-panel">
-            <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
-                <h4 class="h6 mb-0 fw-bold text-uppercase" style="letter-spacing: 0.08em;">Patient &amp; visit</h4>
-                <span class="text-muted small">* Required</span>
-            </div>
-            <div class="row g-3">
-                <div class="col-12">
-                    <label class="form-label" for="patientName">Name*</label>
-                    <input class="form-control" id="patientName" name="patient_name" required autocomplete="name">
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label" for="patientAge">Age*</label>
-                    <input class="form-control" id="patientAge" name="age" type="number" min="0" max="120" required inputmode="numeric">
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label" for="gender">Gender*</label>
-                    <select class="form-select" id="gender" name="gender" required>
-                        <option value="">Select gender</option>
-                        {% for option in gender_options %}
-                            <option value="{{ option }}">{{ option }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-12">
-                    <label class="form-label" for="phone">Phone (optional)</label>
-                    <input class="form-control" id="phone" name="phone" type="tel" autocomplete="tel">
-                </div>
-                <div class="col-12">
-                    <label class="form-label" for="imageType">Image Type</label>
-                    <select class="form-select" id="imageType" name="image_type">
-                        {% for option in image_type_options %}
-                            <option value="{{ option }}">{{ option }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-12">
-                    <label class="form-label" for="notes">Notes (optional)</label>
-                    <textarea class="form-control" id="notes" name="notes" rows="4" placeholder="Clinician notes, ward, or referral context"></textarea>
-                </div>
-                <div class="col-12">
-                    <button class="btn btn-primary btn-lg w-100" id="submitScanButton" {% if not predictor_loaded %}disabled{% endif %}>
-                        Run AI Screening
+                <div class="form-grid">
+                    <div class="field floating full">
+                        <label class="form-label" for="patientName">Name*</label>
+                        <input class="form-control" id="patientName" name="patient_name" required autocomplete="name">
+                    </div>
+                    <div class="field floating">
+                        <label class="form-label" for="patientAge">Age*</label>
+                        <input class="form-control" id="patientAge" name="age" type="number" min="0" max="120" required inputmode="numeric">
+                    </div>
+                    <div class="field floating">
+                        <label class="form-label" for="gender">Gender*</label>
+                        <select class="form-select" id="gender" name="gender" required>
+                            <option value=""></option>
+                            {% for option in gender_options %}
+                                <option value="{{ option }}">{{ option }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="field floating full">
+                        <label class="form-label" for="phone">Phone</label>
+                        <input class="form-control" id="phone" name="phone" type="tel" autocomplete="tel">
+                    </div>
+                    <div class="field floating full">
+                        <label class="form-label" for="imageType">Image Type</label>
+                        <select class="form-select" id="imageType" name="image_type">
+                            {% for option in image_type_options %}
+                                <option value="{{ option }}">{{ option }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="field floating full">
+                        <label class="form-label" for="notes">Notes</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="4"></textarea>
+                    </div>
+                    <button class="btn btn-primary btn-lg full analyze-button" id="submitScanButton" {% if not predictor_loaded %}disabled{% endif %}>
+                        <i data-lucide="dna"></i>
+                        <span>Analyze Now</span>
+                        <i data-lucide="arrow-right"></i>
                     </button>
                 </div>
             </div>
-        </div>
-    </form>
+        </form>
+    </div>
 </section>
 
 <div id="loadingOverlay" class="loading-overlay" aria-hidden="true">
     <div class="spinner-card">
-        <div class="spinner-border text-light" role="status"></div>
-        <p>Running inference. Please wait while the AI analyzes the image.</p>
+        <div class="scan-loader">
+            <i data-lucide="dna"></i>
+            <span></span>
+        </div>
+        <h2>Running AI screening</h2>
+        <p>Scanning image quality, loading model features, generating prediction, and preparing explainability.</p>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{{ url_for('static', filename='js/scan.js') }}"></script>
+<script src="{{ url_for('static', filename='js/upload.js') }}" defer></script>
 {% endblock %}

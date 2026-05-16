@@ -4,6 +4,7 @@
 {% block page_title %}Page Not Found{% endblock %}
 
 {% block content %}
+<div class="page-wrap section-tight">
 <section class="surface-card fade-in-up text-center">
     <span class="eyebrow">404 error</span>
     <h2>The requested page could not be found</h2>
@@ -16,4 +17,5 @@
         <a href="{{ url_for('scan_page') }}" class="btn btn-outline-secondary">Start New Scan</a>
     </div>
 </section>
+</div>
 {% endblock %}
