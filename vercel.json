@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/index.py": {
+    "api/**/*.py": {
       "maxDuration": 60,
       "excludeFiles": "{dataset/**,data/**,logs/**,reports/**,database/**,runtime/**,.venv/**,__pycache__/**,**/*.pyc,models/20260428_2028_last_checkpoint.pth,train.py,evaluate.py,utils/**}"
     }
@@ -9,7 +9,7 @@
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/api/index"
+      "destination": "/api/index.py"
     }
   ]
 }
