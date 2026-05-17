@@ -94,6 +94,7 @@ def inject_shell_context() -> dict[str, Any]:
         "current_year": datetime.utcnow().year,
         "checkpoint_available": False,
         "predictor_loaded": False,
+        "vercel_lightweight": True,
         "predictor_load_error": "Full PyTorch inference runs on the Docker/Render deployment.",
         "disclaimer_text": DISCLAIMER_TEXT,
     }
@@ -104,6 +105,7 @@ def health() -> tuple[dict[str, Any], int]:
     return {
         "status": "ok",
         "vercel": True,
+        "lightweight_ui": True,
         "checkpoint_available": False,
         "predictor_loaded": False,
         "predictor_load_error": "Vercel lightweight UI excludes PyTorch to fit Lambda limits.",

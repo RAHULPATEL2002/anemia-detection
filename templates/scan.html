@@ -16,10 +16,13 @@
 
 <section class="section-tight">
     <div class="page-wrap">
-        <div class="model-readiness-card {% if predictor_loaded %}model-readiness-card--ready{% elif checkpoint_available %}model-readiness-card--loading{% else %}model-readiness-card--offline{% endif %}" role="status" aria-live="polite">
-            <i data-lucide="{% if predictor_loaded %}cpu{% elif checkpoint_available %}loader-2{% else %}cloud-off{% endif %}"></i>
+        <div class="model-readiness-card {% if vercel_lightweight|default(false) or predictor_loaded %}model-readiness-card--ready{% elif checkpoint_available %}model-readiness-card--loading{% else %}model-readiness-card--offline{% endif %}" role="status" aria-live="polite">
+            <i data-lucide="{% if vercel_lightweight|default(false) %}monitor-check{% elif predictor_loaded %}cpu{% elif checkpoint_available %}loader-2{% else %}cloud-off{% endif %}"></i>
             <div>
-                {% if predictor_loaded %}
+                {% if vercel_lightweight|default(false) %}
+                    <strong id="modelStatusBadge">UI Online</strong>
+                    <p id="modelStatusHint">This Vercel deployment serves the lightweight web interface. Use the full Render/Docker deployment for PyTorch inference.</p>
+                {% elif predictor_loaded %}
                     <strong id="modelStatusBadge">Model Ready</strong>
                     <p id="modelStatusHint">The screening model is loaded and ready for inference.</p>
                 {% elif checkpoint_available %}
@@ -135,7 +138,7 @@
                         <label class="form-label" for="notes">Notes</label>
                         <textarea class="form-control" id="notes" name="notes" rows="4"></textarea>
                     </div>
-                    <button class="btn btn-primary btn-lg full analyze-button" id="submitScanButton" {% if not predictor_loaded %}disabled{% endif %}>
+                    <button class="btn btn-primary btn-lg full analyze-button" id="submitScanButton" {% if not predictor_loaded and not vercel_lightweight|default(false) %}disabled{% endif %}>
                         <i data-lucide="dna"></i>
                         <span>Analyze Now</span>
                         <i data-lucide="arrow-right"></i>

@@ -81,7 +81,9 @@ function bindLiveStatus() {
                 return;
             }
             const payload = await response.json();
-            if (payload.predictor_loaded) {
+            if (payload.lightweight_ui) {
+                setState("online", "UI Online");
+            } else if (payload.predictor_loaded) {
                 setState("online", "System Online");
             } else if (payload.checkpoint_available) {
                 setState("warning", "Model Waking");
