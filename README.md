@@ -8,6 +8,11 @@
 ![Docker](https://img.shields.io/badge/Docker-Production%20Ready-2496ED)
 ![License](https://img.shields.io/badge/License-TBD-slate)
 
+## Live Demo
+
+- Vercel UI demo: https://anemia-detection-kru8.vercel.app/
+- Note: the Vercel demo serves the lightweight frontend because PyTorch inference exceeds Vercel Lambda storage limits. Use the Docker/Render deployment for full AI prediction.
+
 ![Demo GIF placeholder](docs/demo.gif)
 
 ## What's New (UI v2.0)
