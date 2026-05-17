@@ -1641,6 +1641,12 @@ def create_app() -> Flask:
             performance=performance_overview(),
         )
 
+    @app.route("/author")
+    def author_page():
+        """Show the developer profile and project vision."""
+
+        return render_template("author.html")
+
     return app
 
 
